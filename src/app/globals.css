@@ -1,8 +1,62 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Simplified 5-Color IU Palette */
+  
+  /* Color 1: IU Crimson - Primary brand color */
+  --iu-crimson: #990000;
+  --iu-crimson-light: #fef2f2;
+  --iu-crimson-dark: #660000;
+  
+  /* Color 3: Light Neutral - Backgrounds */
+  --light-neutral: #fdfdfd;
+  
+  /* Color 4: Mid Neutral - Subtle elements */
+  --mid-neutral: #a0abb4;
+  
+  /* Color 5: Dark Neutral - Text */
+  --dark-neutral: #243142;
+  
+  /* Base Colors */
+  --background: var(--light-neutral);
+  --foreground: var(--dark-neutral);
+  --surface: var(--light-neutral);
+  --surface-elevated: #ffffff;
+  
+  /* Simplified Color Mapping */
+  --primary: var(--iu-crimson);
+  --primary-light: var(--iu-crimson-light);
+  --primary-dark: var(--iu-crimson-dark);
+  
+  --secondary: var(--iu-blue);
+  --secondary-light: var(--iu-blue-light);
+  --secondary-dark: var(--iu-blue-dark);
+  
+  --text-primary: var(--dark-neutral);
+  --text-secondary: var(--mid-neutral);
+  --text-muted: #67788a;
+  
+  /* Study-specific colors */
+  --human-color: var(--iu-blue);
+  --ai-color: var(--iu-crimson);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  
+  /* Border Radius */
+  --radius-sm: 0.375rem;
+  --radius: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  
+  /* Transitions */
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @theme inline {
@@ -14,13 +68,190 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Dark Mode - Simplified 5-Color Palette */
+    --background: var(--dark-neutral);
+    --foreground: var(--light-neutral);
+    --surface: #1a2533; /* Darker variant of dark-neutral */
+    --surface-elevated: var(--dark-neutral);
+    
+    /* Invert text colors for dark mode */
+    --text-primary: var(--light-neutral);
+    --text-secondary: var(--mid-neutral);
+    --text-muted: #8d9aa6;
+    
+    /* Keep brand colors consistent */
+    --primary: var(--iu-crimson);
+    --secondary: var(--iu-blue);
+    
+    /* Adjust light variants for dark backgrounds */
+    --primary-light: var(--iu-crimson-dark);
+    --secondary-light: var(--iu-blue-dark);
   }
+}
+
+/* Base Styles */
+* {
+  box-sizing: border-box;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Utility Classes */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  text-decoration: none;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.btn-primary {
+  background: var(--primary); /* IU Crimson */
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--secondary); /* IU Blue */
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.btn-secondary:hover {
+  background: var(--secondary-dark);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 2px solid var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.btn-outline:hover {
+  background: var(--primary);
+  color: white;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.card {
+  background: var(--surface-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  transition: var(--transition);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.card-primary {
+  background: var(--primary-light);
+  border-left: 4px solid var(--primary);
+}
+
+.card-secondary {
+  background: var(--secondary-light);
+  border-left: 4px solid var(--secondary);
+}
+
+.card-neutral {
+  background: var(--surface-elevated);
+  border-left: 4px solid var(--mid-neutral);
+}
+
+.gradient-bg {
+  background: linear-gradient(135deg, #ffffff 0%, #fefefe 30%, var(--primary-light) 70%, #ffffff 100%);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animation Classes */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.6s ease-out;
+}
+
+/* Responsive Typography */
+.text-hero {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.text-section {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Simplified Text Color Utilities */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-emphasis {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.text-brand-primary {
+  color: var(--primary); /* IU Crimson */
+}
+
+.text-brand-secondary {
+  color: var(--secondary); /* IU Blue */
 }

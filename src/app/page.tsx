@@ -2,102 +2,125 @@ import Image from "next/image";
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+    <div className="min-h-screen gradient-bg py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Hero Section */}
+        <div className="text-center mb-12 animate-fade-in">
+          <div className="inline-flex items-center gap-3 bg-white/80 backdrop-blur-sm rounded-full px-6 py-3 mb-6 shadow-lg">
+            <Image 
+              src="/Indiana_Hoosiers_logo.svg" 
+              alt="Indiana University Logo" 
+              width={20} 
+              height={25}
+              className="flex-shrink-0"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <span className="text-sm font-medium text-secondary">IU Research Study</span>
+          </div>
+          <h1 className="text-hero text-gradient mb-6">
+            🟢 Welcome to Our Research Study
+          </h1>
+          <p className="text-xl leading-relaxed max-w-3xl mx-auto text-muted">
+            Thank you for your interest in participating!
+          </p>
+          <p className="text-lg leading-relaxed max-w-3xl mx-auto text-secondary mt-4">
+            This project is part of an academic research study exploring how people connect and build relationships through conversation.
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* What Will You Do */}
+        <div className="max-w-2xl mx-auto mb-12">
+          <div className="card card-primary animate-slide-in" style={{animationDelay: '0.3s'}}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{backgroundColor: 'var(--primary)'}}>
+                <span className="text-white text-lg">🚀</span>
+              </div>
+              <h2 className="text-section text-emphasis">What Will You Do?</h2>
+            </div>
+            <ul className="space-y-4">
+              <li className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center mt-0.5" style={{backgroundColor: 'var(--primary-light)'}}>
+                  <span className="text-xs font-bold text-brand-primary">•</span>
+                </div>
+                <span className="text-secondary">You'll log in and be paired with another participant.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center mt-0.5" style={{backgroundColor: 'var(--primary-light)'}}>
+                  <span className="text-xs font-bold text-brand-primary">•</span>
+                </div>
+                <span className="text-secondary">Together, you'll have a conversation in a chat interface.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center mt-0.5" style={{backgroundColor: 'var(--primary-light)'}}>
+                  <span className="text-xs font-bold text-brand-primary">•</span>
+                </div>
+                <span className="text-secondary">After the conversation, you'll complete a short survey about your experience.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center mt-0.5" style={{backgroundColor: 'var(--primary-light)'}}>
+                  <span className="text-xs font-bold text-brand-primary">•</span>
+                </div>
+                <span className="text-secondary">Your responses and chat transcript will be stored securely for research purposes.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Important Information */}
+        <div className="card card-neutral animate-fade-in mb-12" style={{animationDelay: '0.5s'}}>
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-2xl">🔒</span>
+            <h2 className="text-section text-emphasis">Important Information</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{backgroundColor: 'var(--primary-light)'}}>
+                <span className="text-lg">🔐</span>
+              </div>
+              <h3 className="font-semibold mb-2 text-emphasis">Confidentiality</h3>
+              <p className="text-sm text-muted">All responses and chat logs will be stored securely and anonymized.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{backgroundColor: 'var(--primary-light)'}}>
+                <span className="text-lg">🚪</span>
+              </div>
+              <h3 className="font-semibold mb-2 text-emphasis">Voluntary Participation</h3>
+              <p className="text-sm text-muted">You can withdraw at any time without penalty.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{backgroundColor: 'var(--primary-light)'}}>
+                <span className="text-lg">✓</span>
+              </div>
+              <h3 className="font-semibold mb-2 text-emphasis">Ethics Approval</h3>
+              <p className="text-sm text-muted">This study has been reviewed under university IRB guidelines.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Call to Action */}
+        <div className="text-center card animate-fade-in" style={{animationDelay: '0.6s', background: 'linear-gradient(135deg, var(--primary-light), var(--light-neutral))'}}>
+          <div className="mb-8">
+            <h2 className="text-section mb-4 text-emphasis">Get Started</h2>
+            <p className="text-lg text-muted">👉 Click below to begin:</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-6 justify-center max-w-3xl mx-auto">
+            <button className="btn btn-primary group">
+              <span className="text-lg mr-2">📝</span>
+              Take the Pre-Survey
+              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+            </button>
+            <button className="btn btn-outline group">
+              <span className="text-lg mr-2">📅</span>
+              Schedule Your Session
+              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+            </button>
+            <button className="btn btn-outline group">
+              <span className="text-lg mr-2">❓</span>
+              Learn More About the Study
+              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
