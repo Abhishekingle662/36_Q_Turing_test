@@ -6,23 +6,20 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         {/* Hero Section */}
         <div className="text-center mb-12 animate-fade-in">
-          <div className="inline-flex items-center gap-3 bg-white/80 backdrop-blur-sm rounded-full px-6 py-3 mb-6 shadow-lg">
+          <h1 className="text-hero text-shadow mb-6">
             <Image 
               src="/Indiana_Hoosiers_logo.svg" 
               alt="Indiana University Logo" 
-              width={20} 
-              height={25}
-              className="flex-shrink-0"
+              width={40} 
+              height={50}
+              className="inline-block mr-3"
             />
-            <span className="text-sm font-medium text-secondary">IU Research Study</span>
-          </div>
-          <h1 className="text-hero text-gradient mb-6">
-            🟢 Welcome to Our Research Study
+            Welcome to Our Research Study
           </h1>
-          <p className="text-xl leading-relaxed max-w-3xl mx-auto text-muted">
+          <p className="text-xl leading-relaxed max-w-3xl mx-auto text-shadow">
             Thank you for your interest in participating!
           </p>
-          <p className="text-lg leading-relaxed max-w-3xl mx-auto text-secondary mt-4">
+          <p className="text-lg leading-relaxed max-w-3xl mx-auto text-shadow mt-4">
             This project is part of an academic research study exploring how people connect and build relationships through conversation.
           </p>
         </div>
@@ -99,8 +96,7 @@ export default function Home() {
         {/* Call to Action */}
         <div className="text-center card animate-fade-in" style={{animationDelay: '0.6s', background: 'linear-gradient(135deg, var(--primary-light), var(--light-neutral))'}}>
           <div className="mb-8">
-            <h2 className="text-section mb-4 text-emphasis">Get Started</h2>
-            <p className="text-lg text-muted">👉 Click below to begin:</p>
+            <h2 className="text-section mb-4 text-emphasis">Get Started here</h2>
           </div>
           <div className="flex flex-col sm:flex-row gap-6 justify-center max-w-3xl mx-auto">
             <button className="btn btn-primary group">
