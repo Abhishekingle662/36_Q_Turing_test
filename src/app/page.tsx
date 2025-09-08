@@ -1,3 +1,5 @@
+'use client';
+
 import Image from "next/image";
 
 export default function Home() {
@@ -93,29 +95,24 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Call to Action */}
-        <div className="text-center card animate-fade-in" style={{animationDelay: '0.6s', background: 'linear-gradient(135deg, var(--primary-light), var(--light-neutral))'}}>
-          <div className="mb-8">
-            <h2 className="text-section mb-4 text-emphasis">Get Started here</h2>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-6 justify-center max-w-3xl mx-auto">
-            <button className="btn btn-primary group">
-              <span className="text-lg mr-2">📝</span>
-              Take the Pre-Survey
-              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
-            </button>
-            <button className="btn btn-outline group">
-              <span className="text-lg mr-2">📅</span>
-              Schedule Your Session
-              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
-            </button>
-            <button className="btn btn-outline group">
-              <span className="text-lg mr-2">❓</span>
-              Learn More About the Study
-              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
-            </button>
-          </div>
-        </div>
+         {/* Call to Action */}
+         <div className="text-center card animate-fade-in" style={{animationDelay: '0.6s', background: 'linear-gradient(135deg, var(--primary-light), var(--light-neutral))'}}>
+           <div className="mb-8">
+             <h2 className="text-lg text-gray-200 mb-6 text-emphasis">
+               Ready to participate in our research study? Click below to enter the conversation interface.
+             </h2>
+           </div>
+           <div className="flex justify-center">
+             <button 
+               className="btn btn-primary group text-xl px-8 py-4"
+               onClick={() => window.location.href = '/chat'}
+             >
+               <span className="text-2xl mr-3">💬</span>
+               Start Conversation
+               <span className="ml-3 transition-transform group-hover:translate-x-1">→</span>
+             </button>
+           </div>
+         </div>
       </div>
     </div>
   );

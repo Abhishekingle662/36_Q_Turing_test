@@ -8,6 +8,11 @@
   --iu-crimson-light: #fef2f2;
   --iu-crimson-dark: #a02121;
   
+  /* Color 2: IU Blue - Secondary color */
+  --iu-blue: #002D72;
+  --iu-blue-light: #f0f4ff;
+  --iu-blue-dark: #001a4d;
+  
   /* Color 3: Light Neutral - Backgrounds */
   --light-neutral: #fdfdfd;
   
@@ -19,7 +24,7 @@
   
   /* Base Colors */
   --background: var(--light-neutral);
-  --foreground: white;
+  --foreground: var(--dark-neutral);
   --surface: var(--light-neutral);
   --surface-elevated: #ffffff;
   
@@ -32,9 +37,9 @@
   --secondary-light: var(--iu-blue-light);
   --secondary-dark: var(--iu-blue-dark);
   
-  --text-primary: white;
-  --text-secondary: white;
-  --text-muted: white;
+  --text-primary: var(--dark-neutral);
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
   
   /* Study-specific colors */
   --human-color: var(--iu-blue);
@@ -64,14 +69,14 @@
   :root {
     /* Dark Mode - Simplified 5-Color Palette */
     --background: var(--dark-neutral);
-    --foreground: white;
+    --foreground: var(--light-neutral);
     --surface: #1a2533; /* Darker variant of dark-neutral */
     --surface-elevated: var(--dark-neutral);
     
     /* Invert text colors for dark mode */
-    --text-primary: white;
-    --text-secondary: white;
-    --text-muted: white;
+    --text-primary: var(--light-neutral);
+    --text-secondary: var(--mid-neutral);
+    --text-muted: #8d9aa6;
     
     /* Keep brand colors consistent */
     --primary: var(--iu-crimson);
@@ -226,28 +231,28 @@ body {
 
 /* Simplified Text Color Utilities */
 .text-primary {
-  color: white;
+  color: var(--text-primary);
 }
 
 .text-secondary {
-  color: white;
+  color: var(--text-secondary);
 }
 
 .text-muted {
-  color: white;
+  color: var(--text-muted);
 }
 
 .text-emphasis {
-  color: white;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .text-brand-primary {
-  color: white;
+  color: var(--primary); /* IU Crimson */
 }
 
 .text-brand-secondary {
-  color: white;
+  color: var(--secondary);
 }
 
 .text-shadow {
