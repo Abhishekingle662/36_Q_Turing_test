@@ -1,16 +1,24 @@
+// Enable client-side functionality (required for state management, event handlers, and interactivity)
 'use client';
 
+// Import React hooks for state management and DOM manipulation
 import { useState, useRef, useEffect } from 'react';
+// Import Next.js optimized Image component
 import Image from 'next/image';
 
+// TypeScript interface defining the structure of a chat message
 interface Message {
-  id: string;
-  content: string;
-  sender: 'user' | 'human' | 'ai';
-  timestamp: Date;
+  id: string;                           // Unique identifier for each message
+  content: string;                      // The actual message text
+  sender: 'user' | 'human' | 'ai';     // Who sent the message (user, human participant, or AI)
+  timestamp: Date;                      // When the message was sent
 }
 
+// Main chat page component - handles the conversation interface
 export default function ChatPage() {
+  // STATE MANAGEMENT: All the reactive data for the chat interface
+  
+  // Array of all chat messages, initialized with a welcome message
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -19,19 +27,33 @@ export default function ChatPage() {
       timestamp: new Date(),
     }
   ]);
+  
+  // Current text in the input field
   const [inputMessage, setInputMessage] = useState('');
+  
+  // Connection status (for UI feedback)
   const [isConnected, setIsConnected] = useState(true);
+  
+  // Type of participant user is chatting with (hidden from user for anonymity)
   const [participantType, setParticipantType] = useState<'human' | 'ai'>('human');
+  
+  // DOM REFERENCES: For direct DOM manipulation
+  // Reference to scroll to bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Reference to the input field for focus management
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // UTILITY FUNCTIONS
+  
+  // Automatically scroll to the bottom of the chat when new messages arrive
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Effect hook: runs scrollToBottom whenever messages array changes
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages]); // Dependency array - only re-run when messages change
 
   const sendMessage = () => {
     if (!inputMessage.trim()) return;
@@ -95,33 +117,45 @@ export default function ChatPage() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // RENDER: The main component JSX
   return (
+    // Main page container with gradient background
     <div className="min-h-screen gradient-bg">
-      {/* Header */}
+      
+      {/* HEADER SECTION: Top navigation bar */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
+            
+            {/* Left side: Logo and title */}
             <div className="flex items-center gap-3">
+              {/* IU Logo */}
               <Image 
                 src="/Indiana_Hoosiers_logo.svg" 
                 alt="Indiana University Logo" 
                 width={32} 
                 height={40}
               />
+              {/* Title and subtitle */}
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Research Study Chat</h1>
                 <p className="text-sm text-gray-600">Conversation Interface</p>
               </div>
             </div>
+            
+            {/* Right side: Status indicator and exit button */}
             <div className="flex items-center gap-4">
+              {/* Connection status indicator */}
               <div className="flex items-center gap-2">
+                {/* Status dot - green if connected, red if not */}
                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                 <span className="text-sm text-gray-600">
                   {isConnected ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
+              {/* Exit button - returns to landing page */}
               <button 
-                onClick={() => window.location.href = '/'}
+                onClick={() => window.location.href = '/'} // Navigate back to home
                 className="btn btn-primary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Exit Study
@@ -157,27 +191,34 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Messages */}
+          {/* MESSAGES AREA: Scrollable chat messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Map through all messages and render each one */}
             {messages.map((message) => (
               <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                key={message.id} // Unique key for React rendering
+                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`} // Align user messages right, others left
               >
-                <div                 className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
+                {/* Message bubble */}
+                <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
                   message.sender === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-900'
+                    ? 'bg-blue-400 text-white'      // User messages: blue background
+                    : 'bg-gray-200 text-gray-900'   // Participant messages: gray background
                 }`}>
                   <div className="flex items-start gap-2">
                     <div className="flex-1">
+                      {/* Message content */}
                       <p className="text-sm">{message.content}</p>
+                      
+                      {/* Message metadata: sender and timestamp */}
                       <div className="flex items-center justify-between mt-2">
+                        {/* Sender label */}
                         <span className={`text-xs ${
                           message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
                         }`}>
-                          {message.sender === 'user' ? 'You' : 'Participant'}
+                          {message.sender === 'user' ? 'You' : 'Participant'} {/* Anonymous labeling */}
                         </span>
+                        {/* Timestamp */}
                         <span className={`text-xs ${
                           message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
                         }`}>
@@ -189,42 +230,50 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
+            {/* Invisible div for auto-scrolling to bottom */}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
+          {/* INPUT AREA: Message composition and send */}
           <div className="p-4 border-t bg-gray-50 rounded-b-lg">
+            {/* Input row: text field and send button */}
             <div className="flex gap-3">
+              {/* Text input field */}
               <input
-                ref={inputRef}
+                ref={inputRef}                                    // Reference for focus management
                 type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
+                value={inputMessage}                              // Controlled input - synced with state
+                onChange={(e) => setInputMessage(e.target.value)} // Update state on every keystroke
+                onKeyPress={handleKeyPress}                      // Handle Enter key press
                 placeholder="Type your message..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black"
-                disabled={!isConnected}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-transparent placeholder-gray-500 text-black"
+                disabled={!isConnected}                          // Disable if not connected
               />
+              {/* Send button */}
               <button
-                onClick={sendMessage}
-                disabled={!inputMessage.trim() || !isConnected}
+                onClick={sendMessage}                            // Send message on click
+                disabled={!inputMessage.trim() || !isConnected} // Disable if empty or disconnected
                 className="btn btn-primary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Send
               </button>
             </div>
+            {/* Help text for users */}
             <p className="text-xs text-gray-500 mt-2">
               Press Enter to send • Shift+Enter for new line • Be respectful and engage naturally
             </p>
           </div>
         </div>
 
-        {/* Study Information */}
+        {/* STUDY INFORMATION: Important notice about research */}
         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <div className="flex items-start gap-3">
+            {/* Warning icon */}
             <span className="text-yellow-600 text-lg">⚠️</span>
             <div>
+              {/* Notice title */}
               <h3 className="font-semibold text-yellow-800 mb-1">Research Study Notice</h3>
+              {/* Important information for participants */}
               <p className="text-sm text-yellow-700">
                 This conversation is being recorded for research purposes. Please engage naturally and respectfully. 
                 You have been paired with another participant for this study. 
@@ -233,7 +282,7 @@ export default function ChatPage() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </div> {/* End chat area */}
+    </div> 
   );
 }
