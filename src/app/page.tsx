@@ -139,7 +139,7 @@ export default function Home() {
           </div>
           
           {/* Start button container */}
-          <div className="flex justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {/* Main CTA button - navigates to chat page when clicked */}
             <button 
               className="btn btn-primary group text-xl px-8 py-4"
@@ -150,6 +150,16 @@ export default function Home() {
               Start Conversation
               {/* Animated arrow that moves on hover */}
               <span className="ml-3 transition-transform group-hover:translate-x-1">→</span>
+            </button>
+            
+            {/* Moderator access button */}
+            <button 
+              className="btn btn-secondary group text-lg px-6 py-3"
+              onClick={() => window.location.href = '/moderator'} // Navigate to moderator dashboard
+            >
+              <span className="text-xl mr-2">👥</span>
+              Moderator Access
+              <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
             </button>
           </div>
         </div>

@@ -1,0 +1,152 @@
+import { io, Socket } from 'socket.io-client';
+
+class SocketService {
+  private socket: Socket | null = null;
+  private serverUrl = 'http://localhost:3002';
+
+  connect(): Socket {
+    if (!this.socket) {
+      this.socket = io(this.serverUrl, {
+        transports: ['websocket', 'polling']
+      });
+    }
+    return this.socket;
+  }
+
+  disconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+  }
+
+  getSocket(): Socket | null {
+    return this.socket;
+  }
+
+  // Participant methods
+  joinAsParticipant(participantId?: string) {
+    if (this.socket) {
+      this.socket.emit('join-session', { 
+        userType: 'participant', 
+        participantId 
+      });
+    }
+  }
+
+  // Moderator methods
+  joinAsModerator(sessionId: string) {
+    if (this.socket) {
+      this.socket.emit('join-session', { 
+        userType: 'moderator', 
+        sessionId 
+      });
+    }
+  }
+
+  sendMessage(sessionId: string, content: string, sender: 'participant' | 'moderator') {
+    if (this.socket) {
+      this.socket.emit('send-message', { sessionId, content, sender });
+    }
+  }
+
+  startTyping(sessionId: string, userType: 'participant' | 'moderator') {
+    if (this.socket) {
+      this.socket.emit('typing-start', { sessionId, userType });
+    }
+  }
+
+  stopTyping(sessionId: string, userType: 'participant' | 'moderator') {
+    if (this.socket) {
+      this.socket.emit('typing-stop', { sessionId, userType });
+    }
+  }
+
+  getActiveSessions() {
+    if (this.socket) {
+      this.socket.emit('get-active-sessions');
+    }
+  }
+
+  clearInactiveSessions() {
+    if (this.socket) {
+      this.socket.emit('clear-inactive-sessions');
+    }
+  }
+
+  leaveSession(sessionId: string) {
+    if (this.socket) {
+      this.socket.emit('leave-session', { sessionId });
+    }
+  }
+
+  // Event listeners
+  onSessionJoined(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('session-joined', callback);
+    }
+  }
+
+  onNewMessage(callback: (message: any) => void) {
+    if (this.socket) {
+      this.socket.on('new-message', callback);
+    }
+  }
+
+  onUserTyping(callback: (data: { userType: string; isTyping: boolean }) => void) {
+    if (this.socket) {
+      this.socket.on('user-typing', callback);
+    }
+  }
+
+  onChatHistory(callback: (messages: any[]) => void) {
+    if (this.socket) {
+      this.socket.on('chat-history', callback);
+    }
+  }
+
+  onActiveSessions(callback: (sessions: any[]) => void) {
+    if (this.socket) {
+      this.socket.on('active-sessions', callback);
+    }
+  }
+
+  onParticipantJoined(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('participant-joined', callback);
+    }
+  }
+
+  onModeratorJoined(callback: () => void) {
+    if (this.socket) {
+      this.socket.on('moderator-joined', callback);
+    }
+  }
+
+  onModeratorLeft(callback: () => void) {
+    if (this.socket) {
+      this.socket.on('moderator-left', callback);
+    }
+  }
+
+  onUserDisconnected(callback: (data: { userType: string }) => void) {
+    if (this.socket) {
+      this.socket.on('user-disconnected', callback);
+    }
+  }
+
+  onParticipantLeft(callback: () => void) {
+    if (this.socket) {
+      this.socket.on('participant-left', callback);
+    }
+  }
+
+  // Clean up event listeners
+  off(event: string, callback?: any) {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
+}
+
+export default new SocketService();
