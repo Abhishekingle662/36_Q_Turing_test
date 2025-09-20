@@ -233,6 +233,41 @@ io.on('connection', (socket) => {
     io.emit('active-sessions', activeSessions);
   });
 
+  // Handle deleting a specific inactive session
+  socket.on('delete-session', (data: { sessionId: string }) => {
+    const { sessionId } = data;
+    console.log(`Server: Received delete-session request for ${sessionId}`);
+    const session = chatSessions.get(sessionId);
+    console.log(`Server: Session found:`, session ? `status: ${session.status}` : 'not found');
+    
+    if (session) {
+      // Allow deleting any session (temporary change for testing)
+      chatSessions.delete(sessionId);
+      console.log(`Server: Session ${sessionId} deleted by moderator successfully (was ${session.status})`);
+      
+      // Send updated active sessions to all moderators
+      const activeSessions = Array.from(chatSessions.entries()).map(([id, session]) => ({
+        sessionId: id,
+        participantId: session.participantId,
+        hasModeratorAssigned: !!session.moderatorId,
+        messageCount: session.messages.length,
+        status: session.status
+      }));
+      
+      console.log(`Server: Sending updated active sessions (${activeSessions.length} sessions)`);
+      io.emit('active-sessions', activeSessions);
+      socket.emit('session-deleted', { sessionId });
+      console.log(`Server: Sent session-deleted confirmation for ${sessionId}`);
+    } else {
+      const error = session ? 'Cannot delete active session' : 'Session not found';
+      console.log(`Server: Delete failed for ${sessionId}: ${error}`);
+      socket.emit('delete-error', { 
+        sessionId, 
+        error 
+      });
+    }
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
     const user = connectedUsers.get(socket.id);

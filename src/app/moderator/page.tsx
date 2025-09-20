@@ -17,6 +17,7 @@ export default function ModeratorDashboard() {
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [deletingSession, setDeletingSession] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function ModeratorDashboard() {
 
     // Listen for active sessions
     socketService.onActiveSessions((sessions) => {
+      console.log('Received active sessions:', sessions);
       setActiveSessions(sessions);
     });
 
@@ -59,6 +61,20 @@ export default function ModeratorDashboard() {
       }
     });
 
+    // Listen for session deletion success
+    socketService.onSessionDeleted((data) => {
+      console.log('Session deleted successfully:', data);
+      setDeletingSession(null);
+      socketService.getActiveSessions(); // Refresh the list
+    });
+
+    // Listen for session deletion errors
+    socketService.onDeleteError((data) => {
+      console.log('Session deletion error:', data);
+      setDeletingSession(null);
+      alert(`Error deleting session: ${data.error}`);
+    });
+
     // Cleanup on unmount
     return () => {
       socketService.disconnect();
@@ -78,6 +94,17 @@ export default function ModeratorDashboard() {
     setTimeout(() => {
       setIsRefreshing(false);
     }, 1000);
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    console.log('Delete session clicked for:', sessionId);
+    if (confirm('Are you sure you want to delete this inactive session? This action cannot be undone.')) {
+      console.log('Deletion confirmed, sending delete request for:', sessionId);
+      setDeletingSession(sessionId);
+      socketService.deleteSession(sessionId);
+    } else {
+      console.log('Deletion cancelled for:', sessionId);
+    }
   };
 
   return (
@@ -181,24 +208,42 @@ export default function ModeratorDashboard() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleJoinSession(session.sessionId)}
-                    className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-                      session.hasModeratorAssigned
-                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                        : session.status === 'inactive'
-                        ? 'bg-red-100 text-red-500 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                    disabled={session.hasModeratorAssigned || session.status === 'inactive'}
-                  >
-                    {session.hasModeratorAssigned 
-                      ? 'Already Moderated' 
-                      : session.status === 'inactive'
-                      ? 'Participant Disconnected'
-                      : 'Join Chat'
-                    }
-                  </button>
+                  <div className="space-y-2">
+                    {session.status === 'inactive' ? (
+                      <button
+                        onClick={() => handleJoinSession(session.sessionId)}
+                        className="w-full py-2 px-4 rounded-lg font-medium bg-red-100 text-red-500 cursor-not-allowed"
+                        disabled={true}
+                      >
+                        Participant Disconnected
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleJoinSession(session.sessionId)}
+                        className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
+                          session.hasModeratorAssigned
+                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                        disabled={session.hasModeratorAssigned}
+                      >
+                        {session.hasModeratorAssigned ? 'Already Moderated' : 'Join Chat'}
+                      </button>
+                    )}
+                    
+                    {/* Always show delete button for testing */}
+                    <button
+                      onClick={() => handleDeleteSession(session.sessionId)}
+                      disabled={deletingSession === session.sessionId}
+                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        session.status === 'inactive' 
+                          ? 'bg-red-600 text-white hover:bg-red-700'
+                          : 'bg-orange-600 text-white hover:bg-orange-700'
+                      }`}
+                    >
+                      {deletingSession === session.sessionId ? 'Deleting...' : `Delete Session (${session.status})`}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

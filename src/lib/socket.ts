@@ -74,6 +74,15 @@ class SocketService {
     }
   }
 
+  deleteSession(sessionId: string) {
+    console.log('SocketService: Emitting delete-session event for:', sessionId);
+    if (this.socket) {
+      this.socket.emit('delete-session', { sessionId });
+    } else {
+      console.error('SocketService: No socket connection available for delete-session');
+    }
+  }
+
   leaveSession(sessionId: string) {
     if (this.socket) {
       this.socket.emit('leave-session', { sessionId });
@@ -144,6 +153,18 @@ class SocketService {
   onParticipantRejoined(callback: (data: any) => void) {
     if (this.socket) {
       this.socket.on('participant-rejoined', callback);
+    }
+  }
+
+  onSessionDeleted(callback: (data: { sessionId: string }) => void) {
+    if (this.socket) {
+      this.socket.on('session-deleted', callback);
+    }
+  }
+
+  onDeleteError(callback: (data: { sessionId: string; error: string }) => void) {
+    if (this.socket) {
+      this.socket.on('delete-error', callback);
     }
   }
 
