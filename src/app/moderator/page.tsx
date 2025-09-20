@@ -10,6 +10,7 @@ interface ActiveSession {
   participantId: string;
   hasModeratorAssigned: boolean;
   messageCount: number;
+  status: 'active' | 'inactive';
 }
 
 export default function ModeratorDashboard() {
@@ -41,6 +42,23 @@ export default function ModeratorDashboard() {
       socketService.getActiveSessions(); // Refresh the list
     });
 
+    // Listen for participant reconnections
+    socketService.onParticipantRejoined((data) => {
+      socketService.getActiveSessions(); // Refresh the list
+    });
+
+    // Listen for participant disconnections
+    socketService.onParticipantLeft(() => {
+      socketService.getActiveSessions(); // Refresh the list
+    });
+
+    // Listen for user disconnections
+    socketService.onUserDisconnected((data) => {
+      if (data.userType === 'participant') {
+        socketService.getActiveSessions(); // Refresh the list
+      }
+    });
+
     // Cleanup on unmount
     return () => {
       socketService.disconnect();
@@ -53,8 +71,8 @@ export default function ModeratorDashboard() {
 
   const refreshSessions = () => {
     setIsRefreshing(true);
-    // Clear inactive sessions and get updated active sessions
-    socketService.clearInactiveSessions();
+    // Just get updated active sessions without clearing
+    socketService.getActiveSessions();
     
     // Reset refreshing state after a delay
     setTimeout(() => {
@@ -153,8 +171,12 @@ export default function ModeratorDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">Status:</span>
-                      <span className="text-sm font-medium text-green-600">
-                        Active
+                      <span className={`text-sm font-medium ${
+                        session.status === 'active' 
+                          ? 'text-green-600' 
+                          : 'text-red-600'
+                      }`}>
+                        {session.status === 'active' ? 'Online' : 'Disconnected'}
                       </span>
                     </div>
                   </div>
@@ -164,11 +186,18 @@ export default function ModeratorDashboard() {
                     className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
                       session.hasModeratorAssigned
                         ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                        : session.status === 'inactive'
+                        ? 'bg-red-100 text-red-500 cursor-not-allowed'
                         : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
-                    disabled={session.hasModeratorAssigned}
+                    disabled={session.hasModeratorAssigned || session.status === 'inactive'}
                   >
-                    {session.hasModeratorAssigned ? 'Already Moderated' : 'Join Chat'}
+                    {session.hasModeratorAssigned 
+                      ? 'Already Moderated' 
+                      : session.status === 'inactive'
+                      ? 'Participant Disconnected'
+                      : 'Join Chat'
+                    }
                   </button>
                 </div>
               </div>

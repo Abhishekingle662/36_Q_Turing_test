@@ -141,6 +141,12 @@ class SocketService {
     }
   }
 
+  onParticipantRejoined(callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on('participant-rejoined', callback);
+    }
+  }
+
   // Clean up event listeners
   off(event: string, callback?: any) {
     if (this.socket) {

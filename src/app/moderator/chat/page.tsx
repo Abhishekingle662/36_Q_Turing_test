@@ -102,6 +102,11 @@ export default function ModeratorChat() {
       }
     });
 
+    // Listen for participant left event
+    socketService.onParticipantLeft(() => {
+      setParticipantConnected(false);
+    });
+
     return () => {
       socketService.disconnect();
     };

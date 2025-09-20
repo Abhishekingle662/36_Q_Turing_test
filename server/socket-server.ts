@@ -50,11 +50,40 @@ io.on('connection', (socket) => {
         
         // Notify moderators about new participant
         socket.broadcast.emit('participant-joined', { sessionId: existingSessionId, participantId: existingSessionId });
-        console.log(`New participant ${existingSessionId} created session`);
+        
+        // Also send updated active sessions immediately to all moderators
+        const activeSessions = Array.from(chatSessions.entries()).map(([id, session]) => ({
+          sessionId: id,
+          participantId: session.participantId,
+          hasModeratorAssigned: !!session.moderatorId,
+          messageCount: session.messages.length,
+          status: session.status
+        }));
+        io.emit('active-sessions', activeSessions);
+        
+        console.log(`New participant ${existingSessionId} created session - notifying moderators`);
       } else {
         // Reactivate existing session
+        const wasInactive = session.status === 'inactive';
         session.status = 'active';
         session.lastActivity = new Date();
+        
+        // If the session was inactive and is now active, notify moderators
+        if (wasInactive) {
+          socket.broadcast.emit('participant-rejoined', { sessionId: existingSessionId, participantId: existingSessionId });
+          
+          // Also send updated active sessions immediately to all moderators
+          const activeSessions = Array.from(chatSessions.entries()).map(([id, session]) => ({
+            sessionId: id,
+            participantId: session.participantId,
+            hasModeratorAssigned: !!session.moderatorId,
+            messageCount: session.messages.length,
+            status: session.status
+          }));
+          io.emit('active-sessions', activeSessions);
+          
+          console.log(`Participant ${existingSessionId} rejoined inactive session - notifying moderators and updating sessions`);
+        }
         console.log(`Participant ${existingSessionId} rejoined existing session`);
       }
       
@@ -137,7 +166,8 @@ io.on('connection', (socket) => {
       sessionId: id,
       participantId: session.participantId,
       hasModeratorAssigned: !!session.moderatorId,
-      messageCount: session.messages.length
+      messageCount: session.messages.length,
+      status: session.status
     }));
     
     socket.emit('active-sessions', activeSessions);
@@ -159,6 +189,7 @@ io.on('connection', (socket) => {
           session.lastActivity = new Date();
           // Notify moderator that participant left
           socket.to(sessionId).emit('participant-left');
+          console.log(`Participant left session ${sessionId} via leave-session, new status: ${session.status}`);
         }
       } else if (user.userType === 'moderator') {
         // If moderator is leaving, just remove moderator assignment
@@ -176,40 +207,11 @@ io.on('connection', (socket) => {
 
   // Handle clearing inactive sessions
   socket.on('clear-inactive-sessions', () => {
-    console.log('=== CLEARING INACTIVE SESSIONS ===');
-    console.log('Total sessions before cleanup:', chatSessions.size);
-    console.log('Connected users:', connectedUsers.size);
-    
     const sessionsToRemove: string[] = [];
-    const connectedSocketIds = new Set(io.sockets.sockets.keys());
     
-    // First, clean up disconnected users from connectedUsers map
-    Array.from(connectedUsers.entries()).forEach(([socketId, user]) => {
-      if (!connectedSocketIds.has(socketId)) {
-        console.log(`Removing disconnected user: ${socketId} (${user.userType})`);
-        connectedUsers.delete(socketId);
-      }
-    });
-    
-    // Find sessions where the participant is no longer connected
+    // Find sessions that are explicitly marked as inactive
     chatSessions.forEach((session, sessionId) => {
-      const participantUser = Array.from(connectedUsers.values()).find(user => 
-        user.sessionId === sessionId && user.userType === 'participant'
-      );
-      
-      const isParticipantMissing = !participantUser;
-      const isSocketDisconnected = participantUser && !connectedSocketIds.has(participantUser.socketId);
-      const isSessionInactive = session.status === 'inactive';
-      
-      console.log(`Session ${sessionId}:`, {
-        status: session.status,
-        hasParticipant: !!participantUser,
-        participantSocketId: participantUser?.socketId,
-        isSocketConnected: participantUser ? connectedSocketIds.has(participantUser.socketId) : false,
-        willRemove: isParticipantMissing || isSocketDisconnected || isSessionInactive
-      });
-      
-      if (isParticipantMissing || isSocketDisconnected || isSessionInactive) {
+      if (session.status === 'inactive') {
         sessionsToRemove.push(sessionId);
       }
     });
@@ -217,7 +219,6 @@ io.on('connection', (socket) => {
     // Remove inactive sessions
     sessionsToRemove.forEach(sessionId => {
       chatSessions.delete(sessionId);
-      console.log(`Removed inactive session: ${sessionId}`);
     });
     
     // Send updated active sessions to all moderators
@@ -225,11 +226,11 @@ io.on('connection', (socket) => {
       sessionId: id,
       participantId: session.participantId,
       hasModeratorAssigned: !!session.moderatorId,
-      messageCount: session.messages.length
+      messageCount: session.messages.length,
+      status: session.status
     }));
     
     io.emit('active-sessions', activeSessions);
-    console.log(`Cleared ${sessionsToRemove.length} inactive sessions`);
   });
 
   // Handle disconnect
@@ -250,7 +251,7 @@ io.on('connection', (socket) => {
           session.lastActivity = new Date();
           // Notify moderator that participant disconnected
           socket.to(user.sessionId).emit('participant-left');
-          console.log(`Participant left session ${user.sessionId} - marked as inactive`);
+          console.log(`Participant left session ${user.sessionId} - marked as inactive, new status: ${session.status}`);
         }
         
         // Notify others in session about disconnect
