@@ -44,7 +44,9 @@ const TypingIndicator = ({ sender, participantName }: { sender: 'human' | 'ai'; 
       </div>
     </div>
   </div>
-);// Main chat page component - handles the conversation interface
+);
+
+// Main chat page component - handles the conversation interface
 export default function ChatPage() {
   // STATE MANAGEMENT: All the reactive data for the chat interface
   
@@ -84,14 +86,14 @@ export default function ChatPage() {
     location: 'Indianapolis, IN',
     interests: ['Technology', 'Reading', 'Hiking', 'Photography'],
     bio: 'I enjoy discussing technology trends and outdoor activities. Always curious about new ideas and perspectives.',
-    profileImage: '/profile_human.jpg'
+    profileImage: '/male.png'
   });
   
   // DOM REFERENCES: For direct DOM manipulation
   // Reference to scroll to bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Reference to the input field for focus management
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   // Reference for typing timeout
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -272,7 +274,7 @@ export default function ChatPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
     
     if (!sessionId) return;
@@ -309,18 +311,12 @@ export default function ChatPage() {
       
       {/* HEADER SECTION: Top navigation bar */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+  <div className="max-w-6xl mx-auto px-8 py-10">
           <div className="flex items-center justify-between">
             
-            {/* Left side: Logo and title */}
+            {/* Left side: title */}
             <div className="flex items-center gap-3">
-              {/* IU Logo */}
-              <Image 
-                src="/Indiana_Hoosiers_logo.svg" 
-                alt="Indiana University Logo" 
-                width={32} 
-                height={40}
-              />
+              
               {/* Title and subtitle */}
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Research Study Chat</h1>
@@ -373,7 +369,6 @@ export default function ChatPage() {
                   height={96}
                   className="rounded-full object-cover border-4 border-gray-200"
                 />
-                <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
               </div>
               <h2 className="text-xl font-semibold text-gray-900 mb-1">{participantInfo.name}</h2>
               <p className="text-sm text-gray-600">{participantInfo.age} years old</p>
@@ -419,7 +414,7 @@ export default function ChatPage() {
           </div>
           
           {/* Main Chat Interface */}
-          <div className="flex-1 bg-white rounded-lg shadow-lg flex flex-col">
+          <div className="flex-1 bg-white rounded-2xl shadow-2xl flex flex-col h-[800px]">
           
           {/* Chat Controls */}
           <div className="p-4 border-b bg-gray-50 rounded-t-lg">
@@ -444,7 +439,7 @@ export default function ChatPage() {
           </div>
 
           {/* MESSAGES AREA: Scrollable chat messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{paddingBottom: '5.5rem'}}>
             {/* Map through all messages and render each one */}
             {messages.map((message) => (
               <div
@@ -452,7 +447,7 @@ export default function ChatPage() {
                 className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`} // Align user messages right, others left
               >
                 {/* Message bubble */}
-                <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
+                <div className={`max-w-md lg:max-w-2xl px-8 py-5 rounded-2xl text-lg ${
                   message.sender === 'user'
                     ? 'bg-blue-400 text-white'      // User messages: blue background
                     : 'bg-gray-200 text-gray-900'   // Participant messages: gray background
@@ -460,7 +455,7 @@ export default function ChatPage() {
                   <div className="flex items-start gap-2">
                     <div className="flex-1">
                       {/* Message content */}
-                      <p className="text-sm">{message.content}</p>
+                        <p className="text-base whitespace-pre-wrap">{message.content}</p>
                       
                       {/* Message metadata: sender and timestamp */}
                       <div className="flex items-center justify-between mt-2">
@@ -486,9 +481,8 @@ export default function ChatPage() {
             {/* Typing indicators */}
             {isTyping && <TypingIndicator sender="ai" participantName={participantInfo.name} />}
             {isModeratorTyping && <TypingIndicator sender="human" participantName={participantInfo.name} />}
-            
-            {/* Invisible div for auto-scrolling to bottom */}
-            <div ref={messagesEndRef} />
+            {/* Always keep the bottom in view, including when typing */}
+            <div ref={messagesEndRef} style={{height: '1px'}} />
           </div>
 
           {/* INPUT AREA: Message composition and send */}
@@ -496,21 +490,22 @@ export default function ChatPage() {
             {/* Input row: text field and send button */}
             <div className="flex gap-3">
               {/* Text input field */}
-              <input
+              <textarea
                 ref={inputRef}                                    // Reference for focus management
-                type="text"
                 value={inputMessage}                              // Controlled input - synced with state
                 onChange={handleInputChange}                     // Update state and handle typing indicators
                 onKeyPress={handleKeyPress}                      // Handle Enter key press
                 placeholder="Type your message..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-transparent placeholder-gray-500 text-black"
+                rows={1}
+                className="flex-1 px-8 py-5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-transparent placeholder-gray-500 text-black text-lg resize-none"
                 disabled={!isConnected}                          // Disable if not connected
+                style={{minHeight: '60px', maxHeight: '150px', overflow: 'auto'}}
               />
               {/* Send button */}
               <button
                 onClick={sendMessage}                            // Send message on click
                 disabled={!inputMessage.trim() || !isConnected} // Disable if empty or disconnected
-                className="btn btn-primary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn btn-primary px-10 py-5 text-lg rounded-2xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Send
               </button>
@@ -523,23 +518,7 @@ export default function ChatPage() {
           </div> {/* End Main Chat Interface */}
         </div> {/* End flex container */}
         
-        {/* STUDY INFORMATION: Important notice about research */}
-        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            {/* Warning icon */}
-            <span className="text-yellow-600 text-lg">⚠️</span>
-            <div>
-              {/* Notice title */}
-              <h3 className="font-semibold text-yellow-800 mb-1">Research Study Notice</h3>
-              {/* Important information for participants */}
-              <p className="text-sm text-yellow-700">
-                This conversation is being recorded for research purposes. Please engage naturally and respectfully. 
-                You have been paired with another participant for this study. 
-                You can exit at any time by clicking the "Exit Study" button above.
-              </p>
-            </div>
-          </div>
-        </div>
+       
       </div> {/* End chat area */}
     </div> 
   );

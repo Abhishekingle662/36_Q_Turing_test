@@ -1,90 +1,59 @@
 @import "tailwindcss";
 
 :root {
-  /* Simplified 5-Color IU Palette */
-  
-  /* Color 1: IU Crimson - Primary brand color */
-  --iu-crimson: #940707;
-  --iu-crimson-light: #fef2f2;
-  --iu-crimson-dark: #a02121;
-  
-  /* Color 2: IU Blue - Secondary color */
-  --iu-blue: #002D72;
-  --iu-blue-light: #f0f4ff;
-  --iu-blue-dark: #001a4d;
-  
-  /* Color 3: Light Neutral - Backgrounds */
-  --light-neutral: #fdfdfd;
-  
-  /* Color 4: Mid Neutral - Subtle elements */
-  --mid-neutral: #e1e7ec;
-  
-  /* Color 5: Dark Neutral - Text */
-  --dark-neutral: #243142;
+  /* Minimalist Lilac Color Palette */
+  --lilac: #c8a3f3;
+  --lilac-light: #d6b3fe;
+  --lilac-lighter: #e5ccff;
+  --lilac-dark: #8a5cbf;
+  --lilac-darker: #6b4699;
   
   /* Base Colors */
-  --background: var(--light-neutral);
-  --foreground: var(--dark-neutral);
-  --surface: var(--light-neutral);
-  --surface-elevated: #ffffff;
+  --white: #ffffff;
+  --black: #000000;
+  --gray-light: #f5f5f5;
+  --gray: #e0e0e0;
   
-  /* Simplified Color Mapping */
-  --primary: var(--iu-crimson);
-  --primary-light: var(--iu-crimson-light);
-  --primary-dark: var(--iu-crimson-dark);
+  /* Color Assignments */
+  --background: var(--lilac-lighter);
+  --surface: var(--lilac-lighter);
+  --surface-elevated: var(--white);
+  --surface-accent: var(--lilac-light);
   
-  --secondary: var(--iu-blue);
-  --secondary-light: var(--iu-blue-light);
-  --secondary-dark: var(--iu-blue-dark);
+  --primary: var(--lilac);
+  --primary-light: var(--lilac-light);
+  --primary-dark: var(--lilac-dark);
   
-  --text-primary: var(--dark-neutral);
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
-  
-  /* Study-specific colors */
-  --human-color: var(--iu-blue);
-  --ai-color: var(--iu-crimson);
+  --text-primary: var(--black);
+  --text-secondary: var(--lilac-darker);
+  --text-muted: var(--lilac-dark);
+  --text-inverse: var(--white);
   
   /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.573), 0 1px 2px -1px rgba(18, 18, 18, 0.507);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
   
   /* Border Radius */
-  --radius-sm: 0.375rem;
   --radius: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
   
   /* Transitions */
-  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: all 0.2s ease;
 }
-
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark Mode - Simplified 5-Color Palette */
-    --background: var(--dark-neutral);
-    --foreground: var(--light-neutral);
-    --surface: #1a2533; /* Darker variant of dark-neutral */
-    --surface-elevated: var(--dark-neutral);
+    --background: var(--lilac-dark);
+    --surface: var(--lilac-dark);
+    --surface-elevated: var(--lilac-darker);
+    --surface-accent: var(--lilac);
     
-    /* Invert text colors for dark mode */
-    --text-primary: var(--light-neutral);
-    --text-secondary: var(--mid-neutral);
-    --text-muted: #8d9aa6;
-    
-    /* Keep brand colors consistent */
-    --primary: var(--iu-crimson);
-    --secondary: var(--iu-blue);
-    
-    /* Adjust light variants for dark backgrounds */
-    --primary-light: var(--iu-crimson-dark);
-    --secondary-light: var(--iu-blue-dark);
+    --text-primary: var(--white);
+    --text-secondary: var(--lilac-lighter);
+    --text-muted: var(--lilac-light);
+    --text-inverse: var(--black);
   }
 }
 
@@ -95,7 +64,7 @@
 
 body {
   background: var(--background);
-  color: var(--foreground);
+  color: var(--text-primary);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   margin: 0;
@@ -104,7 +73,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Utility Classes */
+/* Component Styles */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -121,8 +90,8 @@ body {
 }
 
 .btn-primary {
-  background: var(--primary); /* IU Crimson */
-  color: white;
+  background: var(--primary);
+  color: var(--text-inverse);
   box-shadow: var(--shadow);
 }
 
@@ -133,65 +102,63 @@ body {
 }
 
 .btn-secondary {
-  background: var(--secondary); /* IU Blue */
-  color: white;
-  box-shadow: var(--shadow);
+  background: var(--primary-light);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary:hover {
-  background: var(--secondary-dark);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  background: var(--primary);
+  color: var(--text-inverse);
+  box-shadow: var(--shadow);
 }
 
 .btn-outline {
   background: transparent;
-  color: white;
+  color: var(--text-primary);
   border: 2px solid var(--primary);
-  box-shadow: var(--shadow);
 }
 
 .btn-outline:hover {
   background: var(--primary);
-  color: white;
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  color: var(--text-inverse);
 }
 
 .card {
   background: var(--surface-elevated);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
   padding: 1.5rem;
   transition: var(--transition);
+  border: 1px solid var(--primary-light);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.card-accent {
+  background: var(--surface-accent);
+  border-left: 4px solid var(--primary-dark);
 }
 
 .card-primary {
   background: var(--primary-light);
-  border-left: 4px solid var(--primary);
+  color: var(--text-primary);
 }
 
-.card-secondary {
-  background: var(--secondary-light);
-  border-left: 4px solid var(--secondary);
-}
-
-.card-neutral {
-  background: var(--surface-elevated);
-  border-left: 4px solid var(--mid-neutral);
+.card-subtle {
+  background: var(--surface);
+  border: 1px solid var(--primary);
 }
 
 .gradient-bg {
-  background: linear-gradient(135deg, #eee8e8 0%, var(--primary-light) 30%, var(--primary-light) 70%, #eee8e8 100%);
+  background: linear-gradient(135deg, var(--white) 0%, var(--lilac-lighter) 50%, var(--white) 100%);
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -229,7 +196,7 @@ body {
   line-height: 1.3;
 }
 
-/* Simplified Text Color Utilities */
+/* Text Utilities */
 .text-primary {
   color: var(--text-primary);
 }
@@ -242,19 +209,19 @@ body {
   color: var(--text-muted);
 }
 
+.text-inverse {
+  color: var(--text-inverse);
+}
+
+.text-accent {
+  color: var(--primary);
+}
+
+.text-accent-dark {
+  color: var(--primary-dark);
+}
+
 .text-emphasis {
   color: var(--text-primary);
   font-weight: 600;
-}
-
-.text-brand-primary {
-  color: var(--primary); /* IU Crimson */
-}
-
-.text-brand-secondary {
-  color: var(--secondary);
-}
-
-.text-shadow {
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }

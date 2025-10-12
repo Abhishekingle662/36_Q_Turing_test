@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import socketService from '@/lib/socket';
-import Image from 'next/image';
 
 interface Message {
   id: string;
@@ -42,7 +41,7 @@ export default function ModeratorChat() {
   const [participantConnected, setParticipantConnected] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
@@ -136,7 +135,7 @@ export default function ModeratorChat() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
     
     if (!sessionId) return;
@@ -180,12 +179,7 @@ export default function ModeratorChat() {
               >
                 ←
               </button>
-              <Image 
-                src="/Indiana_Hoosiers_logo.svg" 
-                alt="Indiana University Logo" 
-                width={32} 
-                height={40}
-              />
+             
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Moderator Chat Interface</h1>
                 <p className="text-sm text-gray-600">Session #{sessionId.slice(-8)}</p>
@@ -211,8 +205,8 @@ export default function ModeratorChat() {
       </header>
 
       {/* Chat Interface */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-lg shadow-lg h-[600px] flex flex-col">
+      <div className="max-w-6xl mx-auto px-8 py-10">
+        <div className="bg-white rounded-2xl shadow-2xl h-[800px] flex flex-col">
           
           {/* Chat Header */}
           <div className="p-4 border-b bg-gray-50 rounded-t-lg">
@@ -230,7 +224,7 @@ export default function ModeratorChat() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{paddingBottom: '5.5rem'}}>
             {messages.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-4xl mb-4">💬</div>
@@ -242,14 +236,14 @@ export default function ModeratorChat() {
                   key={message.id}
                   className={`flex ${message.sender === 'moderator' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
+                  <div className={`max-w-md lg:max-w-2xl px-8 py-5 rounded-2xl text-lg ${
                     message.sender === 'moderator'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-200 text-gray-900'
                   }`}>
                     <div className="flex items-start gap-2">
                       <div className="flex-1">
-                        <p className="text-sm">{message.content}</p>
+                        <p className="text-base whitespace-pre-wrap">{message.content}</p>
                         <div className="flex items-center justify-between mt-2">
                           <span className={`text-xs ${
                             message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
@@ -271,50 +265,39 @@ export default function ModeratorChat() {
             
             {/* Typing indicator */}
             {isParticipantTyping && <TypingIndicator />}
-            
-            <div ref={messagesEndRef} />
+            {/* Always keep the bottom in view, including when typing */}
+            <div ref={messagesEndRef} style={{height: '1px'}} />
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t bg-gray-50 rounded-b-lg">
-            <div className="flex gap-3">
-              <input
+          <div className="p-8 border-t bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-5">
+              <textarea
                 ref={inputRef}
-                type="text"
                 value={inputMessage}
                 onChange={handleInputChange}
                 onKeyPress={handleKeyPress}
                 placeholder="Type your response as the moderator..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black"
+                rows={1}
+                className="flex-1 px-8 py-5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black text-lg resize-none"
                 disabled={!isConnected || !participantConnected}
+                style={{minHeight: '60px', maxHeight: '150px', overflow: 'auto'}}
               />
               <button
                 onClick={sendMessage}
                 disabled={!inputMessage.trim() || !isConnected || !participantConnected}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-10 py-5 bg-blue-600 text-white rounded-2xl text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Send
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 mt-3">
               You are moderating as a human participant. Respond naturally and authentically.
             </p>
           </div>
         </div>
 
-        {/* Moderator Instructions */}
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            <span className="text-blue-600 text-lg">ℹ️</span>
-            <div>
-              <h3 className="font-semibold text-blue-800 mb-1">Moderator Guidelines</h3>
-              <p className="text-sm text-blue-700">
-                Act as a natural human participant. Engage authentically and avoid revealing your moderator role. 
-                The participant believes they are chatting with another study participant.
-              </p>
-            </div>
-          </div>
-        </div>
+        
       </div>
     </div>
   );
