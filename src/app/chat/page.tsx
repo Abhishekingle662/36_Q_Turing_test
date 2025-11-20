@@ -44,7 +44,9 @@ const TypingIndicator = ({ sender, participantName }: { sender: 'human' | 'ai'; 
       </div>
     </div>
   </div>
-);// Main chat page component - handles the conversation interface
+);
+
+// Main chat page component - handles the conversation interface
 export default function ChatPage() {
   // STATE MANAGEMENT: All the reactive data for the chat interface
 
@@ -85,14 +87,14 @@ export default function ChatPage() {
     location: 'Indianapolis, IN',
     interests: ['Technology', 'Reading', 'Hiking', 'Photography'],
     bio: 'I enjoy discussing technology trends and outdoor activities. Always curious about new ideas and perspectives.',
-    profileImage: '/profile_human.jpg'
+    profileImage: '/male.png'
   });
 
   // DOM REFERENCES: For direct DOM manipulation
   // Reference to scroll to bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Reference to the input field for focus management
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   // Reference for typing timeout
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -297,7 +299,7 @@ export default function ChatPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
 
     if (!sessionId) return;
@@ -334,7 +336,7 @@ export default function ChatPage() {
 
       {/* HEADER SECTION: Top navigation bar */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+  <div className="max-w-6xl mx-auto px-8 py-10">
           <div className="flex items-center justify-between">
 
             {/* Left side: Logo and title */}
@@ -398,7 +400,6 @@ export default function ChatPage() {
                   height={96}
                   className="rounded-full object-cover border-4 border-gray-200"
                 />
-                <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
               </div>
               <h2 className="text-xl font-semibold text-gray-900 mb-1">{participantInfo.name}</h2>
               <p className="text-sm text-gray-600">{participantInfo.age} years old</p>

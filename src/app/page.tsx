@@ -3,9 +3,16 @@
 'use client';
 
 import Image from "next/image"; // Optimized Image component for better performance
+import { useRouter } from "next/navigation";
 
 // Main home page component - serves as the landing page for the research study
 export default function Home() {
+  const router = useRouter();
+
+  const handleStartChat = () => {
+    router.push('/chat');
+  };
+
   return (
     <div className="min-h-screen white-bg px-4 py-8">
       <div className="max-w-5xl mx-auto">
@@ -13,13 +20,7 @@ export default function Home() {
         {/* HEADER SECTION */}
         <header className="text-center mb-12">
           <div className="flex items-center justify-center mb-6">
-            <Image
-              src="/Indiana_Hoosiers_logo.svg"
-              alt="Indiana University Logo"
-              width={48}
-              height={60}
-              className="mr-4"
-            />
+            
             <h1 className="text-5xl font-bold black-text">Welcome!</h1>
           </div>
           <div className="max-w-3xl mx-auto">

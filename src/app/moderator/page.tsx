@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import socketService from '@/lib/socket';
-import Image from 'next/image';
 
 interface ActiveSession {
   sessionId: string;
@@ -114,12 +113,7 @@ export default function ModeratorDashboard() {
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Image 
-                src="/Indiana_Hoosiers_logo.svg" 
-                alt="Indiana University Logo" 
-                width={32} 
-                height={40}
-              />
+              
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Moderator Dashboard</h1>
                 <p className="text-sm text-gray-600">Research Study Chat Moderation</p>

@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import socketService from '@/lib/socket';
-import Image from 'next/image';
 
 interface Message {
   id: string;
@@ -43,7 +42,7 @@ export default function ModeratorChat() {
   const [isChatEnded, setIsChatEnded] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
@@ -143,7 +142,7 @@ export default function ModeratorChat() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
 
     if (!sessionId) return;
@@ -222,12 +221,7 @@ export default function ModeratorChat() {
               >
                 ←
               </button>
-              <Image
-                src="/Indiana_Hoosiers_logo.svg"
-                alt="Indiana University Logo"
-                width={32}
-                height={40}
-              />
+              
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full ${participantConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                 <span className="text-sm text-gray-600">
@@ -267,7 +261,7 @@ export default function ModeratorChat() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{paddingBottom: '5.5rem'}}>
             {messages.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <div className="text-4xl mb-4">💬</div>
@@ -285,7 +279,7 @@ export default function ModeratorChat() {
                     }`}>
                     <div className="flex items-start gap-2">
                       <div className="flex-1">
-                        <p className="text-sm">{message.content}</p>
+                        <p className="text-base whitespace-pre-wrap">{message.content}</p>
                         <div className="flex items-center justify-between mt-2">
                           <span className={`text-xs ${message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
                             }`}>
@@ -310,27 +304,28 @@ export default function ModeratorChat() {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t bg-gray-50 rounded-b-lg">
-            <div className="flex gap-3">
-              <input
+          <div className="p-8 border-t bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-5">
+              <textarea
                 ref={inputRef}
-                type="text"
                 value={inputMessage}
                 onChange={handleInputChange}
                 onKeyPress={handleKeyPress}
                 placeholder="Type your response as the moderator..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black"
+                rows={1}
+                className="flex-1 px-8 py-5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black text-lg resize-none"
                 disabled={!isConnected || !participantConnected}
+                style={{minHeight: '60px', maxHeight: '150px', overflow: 'auto'}}
               />
               <button
                 onClick={sendMessage}
                 disabled={!inputMessage.trim() || !isConnected || !participantConnected}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-10 py-5 bg-blue-600 text-white rounded-2xl text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Send
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 mt-3">
               You are moderating as a human participant. Respond naturally and authentically.
             </p>
           </div>
