@@ -40,7 +40,8 @@ export default function ModeratorChat() {
   const [isConnected, setIsConnected] = useState(false);
   const [isParticipantTyping, setIsParticipantTyping] = useState(false);
   const [participantConnected, setParticipantConnected] = useState(true);
-  
+  const [isChatEnded, setIsChatEnded] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -57,7 +58,7 @@ export default function ModeratorChat() {
 
     // Connect to socket
     const socket = socketService.connect();
-    
+
     socket.on('connect', () => {
       setIsConnected(true);
       socketService.joinAsModerator(sessionId);
@@ -107,6 +108,12 @@ export default function ModeratorChat() {
       setParticipantConnected(false);
     });
 
+    // Listen for session ended event
+    socketService.onSessionEnded(() => {
+      console.log('Moderator: Received session-ended event');
+      setIsChatEnded(true);
+    });
+
     return () => {
       socketService.disconnect();
     };
@@ -121,7 +128,7 @@ export default function ModeratorChat() {
 
     socketService.sendMessage(sessionId, inputMessage, 'moderator');
     setInputMessage('');
-    
+
     // Stop typing indicator
     socketService.stopTyping(sessionId, 'moderator');
     if (typingTimeoutRef.current) {
@@ -138,17 +145,17 @@ export default function ModeratorChat() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputMessage(e.target.value);
-    
+
     if (!sessionId) return;
 
     // Start typing indicator
     socketService.startTyping(sessionId, 'moderator');
-    
+
     // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    
+
     // Stop typing after 1 second of inactivity
     typingTimeoutRef.current = setTimeout(() => {
       socketService.stopTyping(sessionId, 'moderator');
@@ -161,6 +168,41 @@ export default function ModeratorChat() {
 
   const goBackToDashboard = () => {
     router.push('/moderator');
+  };
+
+  const handleEndChat = () => {
+    if (confirm('Are you sure you want to end this chat session? This will close the chat for the participant as well.')) {
+      console.log('Moderator: Ending chat for session:', sessionId);
+      socketService.endSession(sessionId!);
+    }
+  };
+
+  const exportChat = () => {
+    if (!messages.length) return;
+
+    // Generate CSV content
+    const headers = ['Timestamp', 'Sender', 'Message'];
+    const csvContent = [
+      headers.join(','),
+      ...messages.map(msg => {
+        const timestamp = msg.timestamp.toLocaleString();
+        const sender = msg.sender === 'moderator' ? 'Moderator' : 'Participant';
+        // Escape quotes in message content
+        const content = `"${msg.content.replace(/"/g, '""')}"`;
+        return `${timestamp},${sender},${content}`;
+      })
+    ].join('\n');
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `chat_export_${sessionId}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (!sessionId) {
@@ -180,25 +222,12 @@ export default function ModeratorChat() {
               >
                 ←
               </button>
-              <Image 
-                src="/Indiana_Hoosiers_logo.svg" 
-                alt="Indiana University Logo" 
-                width={32} 
+              <Image
+                src="/Indiana_Hoosiers_logo.svg"
+                alt="Indiana University Logo"
+                width={32}
                 height={40}
               />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Moderator Chat Interface</h1>
-                <p className="text-sm text-gray-600">Session #{sessionId.slice(-8)}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-gray-600">
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full ${participantConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                 <span className="text-sm text-gray-600">
@@ -206,6 +235,14 @@ export default function ModeratorChat() {
                 </span>
               </div>
             </div>
+            {!isChatEnded && (
+              <button
+                onClick={handleEndChat}
+                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+              >
+                End Chat
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -213,7 +250,7 @@ export default function ModeratorChat() {
       {/* Chat Interface */}
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="bg-white rounded-lg shadow-lg h-[600px] flex flex-col">
-          
+
           {/* Chat Header */}
           <div className="p-4 border-b bg-gray-50 rounded-t-lg">
             <div className="flex items-center justify-between">
@@ -242,23 +279,20 @@ export default function ModeratorChat() {
                   key={message.id}
                   className={`flex ${message.sender === 'moderator' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
-                    message.sender === 'moderator'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-900'
-                  }`}>
+                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.sender === 'moderator'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-900'
+                    }`}>
                     <div className="flex items-start gap-2">
                       <div className="flex-1">
                         <p className="text-sm">{message.content}</p>
                         <div className="flex items-center justify-between mt-2">
-                          <span className={`text-xs ${
-                            message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
-                          }`}>
+                          <span className={`text-xs ${message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
+                            }`}>
                             {message.sender === 'moderator' ? 'You (Moderator)' : 'Participant'}
                           </span>
-                          <span className={`text-xs ${
-                            message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
-                          }`}>
+                          <span className={`text-xs ${message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
+                            }`}>
                             {formatTime(message.timestamp)}
                           </span>
                         </div>
@@ -268,10 +302,10 @@ export default function ModeratorChat() {
                 </div>
               ))
             )}
-            
+
             {/* Typing indicator */}
             {isParticipantTyping && <TypingIndicator />}
-            
+
             <div ref={messagesEndRef} />
           </div>
 
@@ -309,13 +343,42 @@ export default function ModeratorChat() {
             <div>
               <h3 className="font-semibold text-blue-800 mb-1">Moderator Guidelines</h3>
               <p className="text-sm text-blue-700">
-                Act as a natural human participant. Engage authentically and avoid revealing your moderator role. 
+                Act as a natural human participant. Engage authentically and avoid revealing your moderator role.
                 The participant believes they are chatting with another study participant.
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Export Modal */}
+      {isChatEnded && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
+            <div className="text-center">
+              <div className="text-5xl mb-4">📝</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Session Ended</h2>
+              <p className="text-gray-600 mb-6">
+                The chat session has been ended. You can now export the chat history or return to the dashboard.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={exportChat}
+                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <span>⬇️</span> Export Chat (CSV)
+                </button>
+                <button
+                  onClick={goBackToDashboard}
+                  className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Return to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

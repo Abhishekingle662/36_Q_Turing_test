@@ -27,9 +27,9 @@ class SocketService {
   // Participant methods
   joinAsParticipant(participantId?: string) {
     if (this.socket) {
-      this.socket.emit('join-session', { 
-        userType: 'participant', 
-        participantId 
+      this.socket.emit('join-session', {
+        userType: 'participant',
+        participantId
       });
     }
   }
@@ -37,9 +37,9 @@ class SocketService {
   // Moderator methods
   joinAsModerator(sessionId: string) {
     if (this.socket) {
-      this.socket.emit('join-session', { 
-        userType: 'moderator', 
-        sessionId 
+      this.socket.emit('join-session', {
+        userType: 'moderator',
+        sessionId
       });
     }
   }
@@ -86,6 +86,12 @@ class SocketService {
   leaveSession(sessionId: string) {
     if (this.socket) {
       this.socket.emit('leave-session', { sessionId });
+    }
+  }
+
+  endSession(sessionId: string) {
+    if (this.socket) {
+      this.socket.emit('end-session', { sessionId });
     }
   }
 
@@ -165,6 +171,12 @@ class SocketService {
   onDeleteError(callback: (data: { sessionId: string; error: string }) => void) {
     if (this.socket) {
       this.socket.on('delete-error', callback);
+    }
+  }
+
+  onSessionEnded(callback: () => void) {
+    if (this.socket) {
+      this.socket.on('session-ended', callback);
     }
   }
 

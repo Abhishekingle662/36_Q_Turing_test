@@ -8,7 +8,7 @@ import Image from 'next/image';
 // Import socket service for real-time communication
 import socketService from '@/lib/socket';
 
-  // TypeScript interface defining the structure of a chat message
+// TypeScript interface defining the structure of a chat message
 interface Message {
   id: string;                           // Unique identifier for each message
   content: string;                      // The actual message text
@@ -47,7 +47,7 @@ const TypingIndicator = ({ sender, participantName }: { sender: 'human' | 'ai'; 
 );// Main chat page component - handles the conversation interface
 export default function ChatPage() {
   // STATE MANAGEMENT: All the reactive data for the chat interface
-  
+
   // Array of all chat messages, initialized with a welcome message
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -57,24 +57,25 @@ export default function ChatPage() {
       timestamp: new Date(),
     }
   ]);
-  
+
   // Current text in the input field
   const [inputMessage, setInputMessage] = useState('');
-  
+
   // Connection status (for UI feedback)
   const [isConnected, setIsConnected] = useState(false);
-  
+
   // Type of participant user is chatting with (hidden from user for anonymity)
   const [participantType, setParticipantType] = useState<'human' | 'ai'>('human');
-  
+
   // Typing indicators for more human-like interaction
   const [isTyping, setIsTyping] = useState(false);
   const [isModeratorTyping, setIsModeratorTyping] = useState(false);
-  
+
   // Socket-related state
   const [sessionId, setSessionId] = useState<string>('');
   const [moderatorConnected, setModeratorConnected] = useState(false);
-  
+  const [isSessionEnded, setIsSessionEnded] = useState(false);
+
   // Mock participant data (will be fetched from database in production)
   const [participantInfo] = useState<ParticipantInfo>({
     id: '1',
@@ -86,7 +87,7 @@ export default function ChatPage() {
     bio: 'I enjoy discussing technology trends and outdoor activities. Always curious about new ideas and perspectives.',
     profileImage: '/profile_human.jpg'
   });
-  
+
   // DOM REFERENCES: For direct DOM manipulation
   // Reference to scroll to bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -96,7 +97,7 @@ export default function ChatPage() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // UTILITY FUNCTIONS
-  
+
   // Automatically scroll to the bottom of the chat when new messages arrive
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,7 +112,7 @@ export default function ChatPage() {
   useEffect(() => {
     // Connect to socket server
     const socket = socketService.connect();
-    
+
     socket.on('connect', () => {
       setIsConnected(true);
       // Get or create persistent participant ID
@@ -137,12 +138,19 @@ export default function ChatPage() {
     // Listen for new messages from moderator
     socketService.onNewMessage((message) => {
       if (message.sender === 'moderator') {
-        setMessages(prev => [...prev, {
-          id: message.id,
-          content: message.content,
-          sender: 'human', // Show as human to participant
-          timestamp: new Date(message.timestamp)
-        }]);
+        setMessages(prev => {
+          // Check if message already exists to prevent duplicates
+          const messageExists = prev.some(m => m.id === message.id);
+          if (messageExists) {
+            return prev;
+          }
+          return [...prev, {
+            id: message.id,
+            content: message.content,
+            sender: 'human', // Show as human to participant
+            timestamp: new Date(message.timestamp)
+          }];
+        });
       }
     });
 
@@ -170,7 +178,18 @@ export default function ChatPage() {
         sender: msg.sender === 'participant' ? 'user' : (msg.sender === 'moderator' ? 'human' : msg.sender),
         timestamp: new Date(msg.timestamp)
       }));
-      setMessages(prev => [...prev, ...formattedMessages]);
+      // Replace messages (keep only welcome message if it exists, then add history)
+      setMessages(prev => {
+        const welcomeMsg = prev.find(m => m.id === '1'); // Keep welcome message
+        const existingIds = new Set(prev.map(m => m.id));
+        const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
+        return welcomeMsg ? [welcomeMsg, ...newMessages] : newMessages;
+      });
+    });
+
+    // Listen for session ended event
+    socketService.onSessionEnded(() => {
+      setIsSessionEnded(true);
     });
 
     return () => {
@@ -205,24 +224,30 @@ export default function ChatPage() {
   const sendMessage = () => {
     if (!inputMessage.trim()) return;
 
+    // Generate unique ID using timestamp + random + counter
+    const uniqueId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${messages.length}`;
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: uniqueId,
       content: inputMessage,
       sender: 'user',
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, newMessage]);
-    
-    // Send message through socket if connected to moderator
-    if (sessionId && moderatorConnected) {
+
+    // Send message through socket
+    if (sessionId) {
       socketService.sendMessage(sessionId, inputMessage, 'participant');
-    } else if (participantType === 'ai') {
+    }
+
+    if (participantType === 'ai') {
       // Fallback to AI simulation if no moderator
       setIsTyping(true);
       setTimeout(() => {
+        // Generate unique ID for AI response
+        const aiUniqueId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_ai_${messages.length + 1}`;
         const responseMessage: Message = {
-          id: (Date.now() + 1).toString(),
+          id: aiUniqueId,
           content: generateResponse(inputMessage, participantType),
           sender: participantType,
           timestamp: new Date(),
@@ -233,7 +258,7 @@ export default function ChatPage() {
     }
 
     setInputMessage('');
-    
+
     // Stop typing indicator
     if (sessionId) {
       socketService.stopTyping(sessionId, 'participant');
@@ -274,17 +299,17 @@ export default function ChatPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputMessage(e.target.value);
-    
+
     if (!sessionId) return;
 
     // Start typing indicator
     socketService.startTyping(sessionId, 'participant');
-    
+
     // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    
+
     // Stop typing after 1 second of inactivity
     typingTimeoutRef.current = setTimeout(() => {
       socketService.stopTyping(sessionId, 'participant');
@@ -306,19 +331,19 @@ export default function ChatPage() {
   return (
     // Main page container with gradient background
     <div className="min-h-screen gradient-bg">
-      
+
       {/* HEADER SECTION: Top navigation bar */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            
+
             {/* Left side: Logo and title */}
             <div className="flex items-center gap-3">
               {/* IU Logo */}
-              <Image 
-                src="/Indiana_Hoosiers_logo.svg" 
-                alt="Indiana University Logo" 
-                width={32} 
+              <Image
+                src="/Indiana_Hoosiers_logo.svg"
+                alt="Indiana University Logo"
+                width={32}
                 height={40}
               />
               {/* Title and subtitle */}
@@ -327,7 +352,7 @@ export default function ChatPage() {
                 <p className="text-sm text-gray-600">Conversation Interface</p>
               </div>
             </div>
-            
+
             {/* Right side: Status indicator and exit button */}
             <div className="flex items-center gap-4">
               {/* Connection status indicator */}
@@ -339,7 +364,7 @@ export default function ChatPage() {
                 </span>
               </div>
               {/* Exit button - returns to landing page */}
-              <button 
+              <button
                 onClick={() => {
                   // Clean up session before leaving
                   if (sessionId) {
@@ -361,7 +386,7 @@ export default function ChatPage() {
       {/* Chat Area */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex gap-6 h-[600px]">
-          
+
           {/* Participant Information Panel */}
           <div className="w-80 bg-white rounded-lg shadow-lg p-6 flex-shrink-0">
             <div className="text-center mb-6">
@@ -378,18 +403,18 @@ export default function ChatPage() {
               <h2 className="text-xl font-semibold text-gray-900 mb-1">{participantInfo.name}</h2>
               <p className="text-sm text-gray-600">{participantInfo.age} years old</p>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">Occupation</h3>
                 <p className="text-sm text-gray-600">{participantInfo.occupation}</p>
               </div>
-              
+
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">Location</h3>
                 <p className="text-sm text-gray-600">{participantInfo.location}</p>
               </div>
-              
+
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">Interests</h3>
                 <div className="flex flex-wrap gap-2">
@@ -403,13 +428,13 @@ export default function ChatPage() {
                   ))}
                 </div>
               </div>
-              
+
               <div>
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">About</h3>
                 <p className="text-sm text-gray-600 leading-relaxed">{participantInfo.bio}</p>
               </div>
             </div>
-            
+
             <div className="mt-6 pt-4 border-t border-gray-200">
               <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -417,112 +442,109 @@ export default function ChatPage() {
               </div>
             </div>
           </div>
-          
+
           {/* Main Chat Interface */}
           <div className="flex-1 bg-white rounded-lg shadow-lg flex flex-col">
-          
-          {/* Chat Controls */}
-          <div className="p-4 border-b bg-gray-50 rounded-t-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-700">Chatting with:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="font-semibold text-gray-900">
-                    {participantInfo.name}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={switchParticipant}
-                className="btn btn-outline text-xs px-3 py-1"
-                style={{display: 'none'}}
-              >
-                Switch Participant
-              </button>
-            </div>
-          </div>
 
-          {/* MESSAGES AREA: Scrollable chat messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Map through all messages and render each one */}
-            {messages.map((message) => (
-              <div
-                key={message.id} // Unique key for React rendering
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`} // Align user messages right, others left
-              >
-                {/* Message bubble */}
-                <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
-                  message.sender === 'user'
+            {/* Chat Controls */}
+            <div className="p-4 border-b bg-gray-50 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-700">Chatting with:</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="font-semibold text-gray-900">
+                      {participantInfo.name}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={switchParticipant}
+                  className="btn btn-outline text-xs px-3 py-1"
+                  style={{ display: 'none' }}
+                >
+                  Switch Participant
+                </button>
+              </div>
+            </div>
+
+            {/* MESSAGES AREA: Scrollable chat messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Map through all messages and render each one */}
+              {messages.map((message) => (
+                <div
+                  key={message.id} // Unique key for React rendering
+                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`} // Align user messages right, others left
+                >
+                  {/* Message bubble */}
+                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.sender === 'user'
                     ? 'bg-blue-400 text-white'      // User messages: blue background
                     : 'bg-gray-200 text-gray-900'   // Participant messages: gray background
-                }`}>
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1">
-                      {/* Message content */}
-                      <p className="text-sm">{message.content}</p>
-                      
-                      {/* Message metadata: sender and timestamp */}
-                      <div className="flex items-center justify-between mt-2">
-                        {/* Sender label */}
-                        <span className={`text-xs ${
-                          message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                        }`}>
-                          {message.sender === 'user' ? 'You' : 'Participant'} {/* Anonymous labeling */}
-                        </span>
-                        {/* Timestamp */}
-                        <span className={`text-xs ${
-                          message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                        }`}>
-                          {formatTime(message.timestamp)}
-                        </span>
+                    }`}>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        {/* Message content */}
+                        <p className="text-sm">{message.content}</p>
+
+                        {/* Message metadata: sender and timestamp */}
+                        <div className="flex items-center justify-between mt-2">
+                          {/* Sender label */}
+                          <span className={`text-xs ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                            }`}>
+                            {message.sender === 'user' ? 'You' : 'Participant'} {/* Anonymous labeling */}
+                          </span>
+                          {/* Timestamp */}
+                          <span className={`text-xs ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                            }`}>
+                            {formatTime(message.timestamp)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            
-            {/* Typing indicators */}
-            {isTyping && <TypingIndicator sender="ai" participantName={participantInfo.name} />}
-            {isModeratorTyping && <TypingIndicator sender="human" participantName={participantInfo.name} />}
-            
-            {/* Invisible div for auto-scrolling to bottom */}
-            <div ref={messagesEndRef} />
-          </div>
+              ))}
 
-          {/* INPUT AREA: Message composition and send */}
-          <div className="p-4 border-t bg-gray-50 rounded-b-lg">
-            {/* Input row: text field and send button */}
-            <div className="flex gap-3">
-              {/* Text input field */}
-              <input
-                ref={inputRef}                                    // Reference for focus management
-                type="text"
-                value={inputMessage}                              // Controlled input - synced with state
-                onChange={handleInputChange}                     // Update state and handle typing indicators
-                onKeyPress={handleKeyPress}                      // Handle Enter key press
-                placeholder="Type your message..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-transparent placeholder-gray-500 text-black"
-                disabled={!isConnected}                          // Disable if not connected
-              />
-              {/* Send button */}
-              <button
-                onClick={sendMessage}                            // Send message on click
-                disabled={!inputMessage.trim() || !isConnected} // Disable if empty or disconnected
-                className="btn btn-primary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Send
-              </button>
+              {/* Typing indicators */}
+              {isTyping && <TypingIndicator sender="ai" participantName={participantInfo.name} />}
+              {isModeratorTyping && <TypingIndicator sender="human" participantName={participantInfo.name} />}
+
+              {/* Invisible div for auto-scrolling to bottom */}
+              <div ref={messagesEndRef} />
             </div>
-            {/* Help text for users */}
-            <p className="text-xs text-gray-500 mt-2">
-              Press Enter to send • Shift+Enter for new line • Be respectful and engage naturally
-            </p>
-          </div>
+
+            {/* INPUT AREA: Message composition and send */}
+            <div className="p-4 border-t bg-gray-50 rounded-b-lg">
+              {/* Input row: text field and send button */}
+              <div className="flex gap-3">
+                {/* Text input field */}
+                <input
+                  ref={inputRef}                                    // Reference for focus management
+                  type="text"
+                  value={inputMessage}                              // Controlled input - synced with state
+                  onChange={handleInputChange}                     // Update state and handle typing indicators
+                  onKeyPress={handleKeyPress}                      // Handle Enter key press
+                  placeholder="Type your message..."
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-transparent placeholder-gray-500 text-black"
+                  disabled={!isConnected || isSessionEnded}                          // Disable if not connected or session ended
+                />
+                {/* Send button */}
+                <button
+                  onClick={sendMessage}                            // Send message on click
+                  disabled={!inputMessage.trim() || !isConnected || isSessionEnded} // Disable if empty or disconnected or session ended
+                  className="btn btn-primary px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Send
+                </button>
+              </div>
+              {/* Help text for users */}
+              <p className="text-xs text-gray-500 mt-2">
+                Press Enter to send • Shift+Enter for new line • Be respectful and engage naturally
+              </p>
+            </div>
           </div> {/* End Main Chat Interface */}
         </div> {/* End flex container */}
-        
+
         {/* STUDY INFORMATION: Important notice about research */}
         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <div className="flex items-start gap-3">
@@ -533,14 +555,39 @@ export default function ChatPage() {
               <h3 className="font-semibold text-yellow-800 mb-1">Research Study Notice</h3>
               {/* Important information for participants */}
               <p className="text-sm text-yellow-700">
-                This conversation is being recorded for research purposes. Please engage naturally and respectfully. 
-                You have been paired with another participant for this study. 
+                This conversation is being recorded for research purposes. Please engage naturally and respectfully.
+                You have been paired with another participant for this study.
                 You can exit at any time by clicking the "Exit Study" button above.
               </p>
             </div>
           </div>
         </div>
       </div> {/* End chat area */}
-    </div> 
+
+      {/* Session Ended Modal */}
+      {isSessionEnded && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl text-center">
+            <div className="text-5xl mb-4">🛑</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Session Ended</h2>
+            <p className="text-gray-600 mb-6">
+              The moderator has ended this chat session. Thank you for your participation.
+            </p>
+            <button
+              onClick={() => {
+                if (sessionId) {
+                  socketService.leaveSession(sessionId);
+                }
+                sessionStorage.removeItem('participantId');
+                window.location.href = '/';
+              }}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Return to Home
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
