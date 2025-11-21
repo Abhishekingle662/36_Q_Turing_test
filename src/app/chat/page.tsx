@@ -68,6 +68,12 @@ export default function ChatPage() {
 
   // Type of participant user is chatting with (hidden from user for anonymity)
   const [participantType, setParticipantType] = useState<'human' | 'ai'>('human');
+  const [partnerType, setPartnerType] = useState<'human' | 'llm'>('human');
+  const [hasStartedConversation, setHasStartedConversation] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionCountdown, setConnectionCountdown] = useState(5);
+  const [hasJoinedSession, setHasJoinedSession] = useState(false);
+  const [matchStatusMessage, setMatchStatusMessage] = useState<string>('');
 
   // Typing indicators for more human-like interaction
   const [isTyping, setIsTyping] = useState(false);
@@ -77,6 +83,9 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<string>('');
   const [moderatorConnected, setModeratorConnected] = useState(false);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
+  const participantIdRef = useRef<string>('');
+  const hasStartedRef = useRef(false);
+  const hasJoinedRef = useRef(false);
 
   // Mock participant data (will be fetched from database in production)
   const [participantInfo] = useState<ParticipantInfo>({
@@ -112,6 +121,14 @@ export default function ChatPage() {
 
   // Socket connection and event setup
   useEffect(() => {
+    hasStartedRef.current = hasStartedConversation;
+  }, [hasStartedConversation]);
+
+  useEffect(() => {
+    hasJoinedRef.current = hasJoinedSession;
+  }, [hasJoinedSession]);
+
+  useEffect(() => {
     // Connect to socket server
     const socket = socketService.connect();
 
@@ -123,7 +140,10 @@ export default function ChatPage() {
         participantId = `participant_${Date.now()}`;
         sessionStorage.setItem('participantId', participantId);
       }
-      socketService.joinAsParticipant(participantId);
+      participantIdRef.current = participantId;
+      if (hasStartedRef.current && !hasJoinedRef.current) {
+        socketService.joinAsParticipant(participantId);
+      }
     });
 
     socket.on('disconnect', () => {
@@ -134,6 +154,16 @@ export default function ChatPage() {
     socketService.onSessionJoined((data) => {
       if (data.userType === 'participant') {
         setSessionId(data.sessionId);
+        setHasJoinedSession(true);
+        if (data.partnerType) {
+          setPartnerType(data.partnerType);
+          setParticipantType(data.partnerType === 'llm' ? 'ai' : 'human');
+          setMatchStatusMessage(
+            data.partnerType === 'llm'
+              ? 'You have been paired with our AI research participant.'
+              : 'You have been paired with another human participant.'
+          );
+        }
       }
     });
 
@@ -224,7 +254,7 @@ export default function ChatPage() {
   }, [sessionId]);
 
   const sendMessage = () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || !hasJoinedSession) return;
 
     // Generate unique ID using timestamp + random + counter
     const uniqueId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${messages.length}`;
@@ -242,7 +272,7 @@ export default function ChatPage() {
       socketService.sendMessage(sessionId, inputMessage, 'participant');
     }
 
-    if (participantType === 'ai') {
+    if (participantType === 'ai' && partnerType !== 'llm') {
       // Fallback to AI simulation if no moderator
       setIsTyping(true);
       setTimeout(() => {
@@ -325,6 +355,39 @@ export default function ChatPage() {
     setIsModeratorTyping(false);
   };
 
+  const handleStartConversation = () => {
+    if (hasStartedConversation || isConnecting) return;
+    setIsConnecting(true);
+    setConnectionCountdown(5);
+    setMatchStatusMessage('Pairing you with another participant...');
+
+    let remaining = 5;
+    const countdownInterval = setInterval(() => {
+      remaining -= 1;
+      setConnectionCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(countdownInterval);
+      }
+    }, 1000);
+
+    setTimeout(() => {
+      clearInterval(countdownInterval);
+      setIsConnecting(false);
+      setHasStartedConversation(true);
+      if (participantIdRef.current) {
+        socketService.joinAsParticipant(participantIdRef.current);
+      } else if (isConnected) {
+        let participantId = sessionStorage.getItem('participantId');
+        if (!participantId) {
+          participantId = `participant_${Date.now()}`;
+          sessionStorage.setItem('participantId', participantId);
+        }
+        participantIdRef.current = participantId;
+        socketService.joinAsParticipant(participantId);
+      }
+    }, 5000);
+  };
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -336,7 +399,7 @@ export default function ChatPage() {
 
       {/* HEADER SECTION: Top navigation bar */}
       <header className="bg-white shadow-sm border-b">
-  <div className="max-w-6xl mx-auto px-8 py-10">
+        <div className="max-w-6xl mx-auto px-8 py-10">
           <div className="flex items-center justify-between">
 
             {/* Left side: Logo and title */}
@@ -452,11 +515,16 @@ export default function ChatPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-medium text-gray-700">Chatting with:</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${hasJoinedSession ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                     <span className="font-semibold text-gray-900">
                       {participantInfo.name}
                     </span>
+                    {hasJoinedSession && (
+                      <span className={`text-xs px-2 py-1 rounded-full font-semibold ${partnerType === 'llm' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {partnerType === 'llm' ? 'AI Participant' : 'Human Participant'}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button
@@ -470,7 +538,38 @@ export default function ChatPage() {
             </div>
 
             {/* MESSAGES AREA: Scrollable chat messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 relative">
+              {(!hasStartedConversation || isConnecting) && (
+                <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex items-center justify-center">
+                  <div className="bg-white border rounded-2xl shadow-lg p-8 max-w-md text-center space-y-4">
+                    <div className="text-4xl">🔄</div>
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      {isConnecting ? 'Pairing You Now' : 'Ready to Start?'}
+                    </h3>
+                    <p className="text-gray-600">
+                      {isConnecting
+                        ? 'Matching you with another participant. This can take up to 5 seconds.'
+                        : 'When you start, we will randomly connect you with either another human or our AI research participant.'}
+                    </p>
+                    {isConnecting ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="text-2xl font-mono text-blue-600">{connectionCountdown > 0 ? connectionCountdown : 0}</div>
+                        <p className="text-sm text-gray-500">Determining your conversation partner...</p>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleStartConversation}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Start Conversation
+                      </button>
+                    )}
+                    <p className="text-xs text-gray-400">
+                      50% chance of connecting with an AI participant. All chats are monitored for research.
+                    </p>
+                  </div>
+                </div>
+              )}
               {/* Map through all messages and render each one */}
               {messages.map((message) => (
                 <div
@@ -508,7 +607,12 @@ export default function ChatPage() {
 
               {/* Typing indicators */}
               {isTyping && <TypingIndicator sender="ai" participantName={participantInfo.name} />}
-              {isModeratorTyping && <TypingIndicator sender="human" participantName={participantInfo.name} />}
+              {isModeratorTyping && (
+                <TypingIndicator
+                  sender={partnerType === 'llm' ? 'ai' : 'human'}
+                  participantName={participantInfo.name}
+                />
+              )}
 
               {/* Invisible div for auto-scrolling to bottom */}
               <div ref={messagesEndRef} />
@@ -519,14 +623,14 @@ export default function ChatPage() {
               {/* Input row: text field and send button */}
               <div className="flex gap-3">
                 {/* Text input field */}
-                <input
+                <textarea
                   ref={inputRef}                                    // Reference for focus management
-                  type="text"
                   value={inputMessage}                              // Controlled input - synced with state
                   onChange={handleInputChange}                     // Update state and handle typing indicators
                   onKeyPress={handleKeyPress}                      // Handle Enter key press
                   placeholder="Type your message..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-transparent placeholder-gray-500 text-black"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-transparent placeholder-gray-500 text-black resize-none"
+                  rows={1}
                   disabled={!isConnected || isSessionEnded}                          // Disable if not connected or session ended
                 />
                 {/* Send button */}
@@ -541,6 +645,9 @@ export default function ChatPage() {
               {/* Help text for users */}
               <p className="text-xs text-gray-500 mt-2">
                 Press Enter to send • Shift+Enter for new line • Be respectful and engage naturally
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {matchStatusMessage || 'Click "Start Conversation" to be paired with a partner.'}
               </p>
             </div>
           </div> {/* End Main Chat Interface */}

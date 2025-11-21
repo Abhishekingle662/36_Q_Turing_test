@@ -2,7 +2,7 @@ import { io, Socket } from 'socket.io-client';
 
 class SocketService {
   private socket: Socket | null = null;
-  private serverUrl = 'http://localhost:3002';
+  private serverUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3006';
 
   connect(): Socket {
     if (!this.socket) {
@@ -141,6 +141,12 @@ class SocketService {
   onModeratorLeft(callback: () => void) {
     if (this.socket) {
       this.socket.on('moderator-left', callback);
+    }
+  }
+
+  onJoinError(callback: (data: { sessionId: string; error: string }) => void) {
+    if (this.socket) {
+      this.socket.on('join-error', callback);
     }
   }
 

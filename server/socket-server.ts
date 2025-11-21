@@ -1,12 +1,14 @@
+import 'dotenv/config';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { connectDB } from './db.js';
 import { Session } from './models.js';
+import { generateLLMResponse, isLLMEnabled } from './llm.js';
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
   cors: {
-    origin: ["http://localhost:3001", "http://localhost:3000"],
+    origin: ["http://localhost:3005", "http://localhost:3000"],
     methods: ["GET", "POST"]
   }
 });
@@ -30,7 +32,8 @@ io.on('connection', (socket) => {
         participantId: session.participantId,
         hasModeratorAssigned: !!session.moderatorId,
         messageCount: session.messages.length,
-        status: session.status
+        status: session.status,
+        partnerType: session.partnerType || 'human'
       }));
       io.emit('active-sessions', activeSessions);
     } catch (err) {
@@ -55,6 +58,7 @@ io.on('connection', (socket) => {
             participantId: targetSessionId,
             status: 'active',
             lastActivity: new Date(),
+            partnerType: isLLMEnabled() && Math.random() < 0.5 ? 'llm' : 'human',
             messages: []
           });
 
@@ -66,6 +70,9 @@ io.on('connection', (socket) => {
           const wasInactive = session.status === 'inactive';
           session.status = 'active';
           session.lastActivity = new Date();
+          if (!session.partnerType) {
+            session.partnerType = isLLMEnabled() && Math.random() < 0.5 ? 'llm' : 'human';
+          }
           await session.save();
 
           // If the session was inactive and is now active, notify moderators
@@ -81,7 +88,7 @@ io.on('connection', (socket) => {
         connectedUsers.set(socket.id, { socketId: socket.id, userType: 'participant', sessionId: targetSessionId, lastActive: new Date() });
 
         socket.join(targetSessionId);
-        socket.emit('session-joined', { sessionId: targetSessionId, userType: 'participant' });
+        socket.emit('session-joined', { sessionId: targetSessionId, userType: 'participant', partnerType: session.partnerType });
 
         // Send existing chat history to participant
         socket.emit('chat-history', session.messages);
@@ -93,18 +100,19 @@ io.on('connection', (socket) => {
       // Moderator joining existing session
       try {
         const session = await Session.findOne({ participantId: sessionId });
-        if (session) {
+        if (session && session.partnerType === 'human') {
           session.moderatorId = socket.id;
           await session.save();
 
           connectedUsers.set(socket.id, { socketId: socket.id, userType: 'moderator', sessionId, lastActive: new Date() });
 
           socket.join(sessionId);
-          socket.emit('session-joined', { sessionId, userType: 'moderator', session });
+          socket.emit('session-joined', { sessionId, userType: 'moderator', session, partnerType: session.partnerType });
 
           // Send chat history to moderator
           socket.emit('chat-history', session.messages);
-
+        } else if (session && session.partnerType === 'llm') {
+          socket.emit('join-error', { sessionId, error: 'Session managed by LLM moderator' });
         }
       } catch (err) {
         console.error("Error in join-session (moderator):", err);
@@ -147,6 +155,33 @@ io.on('connection', (socket) => {
         io.to(sessionId).emit('new-message', message);
 
         console.log(`Message sent in session ${sessionId}:`, message);
+
+        if (sender === 'participant' && session.partnerType === 'llm' && isLLMEnabled()) {
+          io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: true });
+
+          (async () => {
+            try {
+              const llmResponse = await generateLLMResponse(session);
+              if (!llmResponse) return;
+
+              const llmMessage = {
+                id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${session.messages.length}`,
+                content: llmResponse,
+                sender: 'moderator' as const,
+                timestamp: new Date()
+              };
+
+              session.messages.push(llmMessage);
+              session.lastActivity = new Date();
+              await session.save();
+              io.to(sessionId).emit('new-message', llmMessage);
+            } catch (error) {
+              console.error('LLM response error:', error);
+            } finally {
+              io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: false });
+            }
+          })();
+        }
       } else {
         console.error(`Server: Session NOT found for ${sessionId} during send-message`);
       }
@@ -313,7 +348,7 @@ io.on('connection', (socket) => {
 });
 
 // Force restart
-const PORT = process.env.SOCKET_PORT || 3002;
+const PORT = process.env.SOCKET_PORT || 3006;
 httpServer.listen(PORT, () => {
   console.log(`Socket.IO server running on port ${PORT}`);
 }).on('error', (err: NodeJS.ErrnoException) => {

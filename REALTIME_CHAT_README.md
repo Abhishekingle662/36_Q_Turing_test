@@ -43,8 +43,8 @@ This system provides real-time communication between participants and moderators
 npm run dev:full
 
 # Or run separately:
-npm run dev          # Next.js on port 3001
-npm run dev:socket   # Socket.IO server on port 3002
+npm run dev          # Next.js on port 3005
+npm run dev:socket   # Socket.IO server on port 3006
 ```
 
 ### Production Setup:
@@ -53,8 +53,8 @@ npm run dev:socket   # Socket.IO server on port 3002
 3. Update socket connection URL in `/src/lib/socket.ts`
 
 ## Ports:
-- **Next.js App**: 3001
-- **Socket.IO Server**: 3002
+- **Next.js App**: 3005
+- **Socket.IO Server**: 3006
 
 ## Database Integration
 
@@ -70,8 +70,13 @@ The current implementation uses in-memory storage. For production:
 
 Create `.env.local` for configuration:
 ```
-SOCKET_SERVER_URL=http://localhost:3002
-NEXT_PUBLIC_SOCKET_URL=http://localhost:3002
+SOCKET_SERVER_URL=http://localhost:3006
+NEXT_PUBLIC_SOCKET_URL=http://localhost:3006
+OPENAI_API_KEY=sk-your-key
+# Optional overrides
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_TEMPERATURE=0.7
+OPENAI_MAX_TOKENS=256
 ```
 
 ## Security Considerations

@@ -10,6 +10,7 @@ interface ActiveSession {
   hasModeratorAssigned: boolean;
   messageCount: number;
   status: 'active' | 'inactive';
+  partnerType: 'human' | 'llm';
 }
 
 export default function ModeratorDashboard() {
@@ -144,7 +145,7 @@ export default function ModeratorDashboard() {
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Active Chat Sessions</h2>
           <p className="text-gray-600">
-            Monitor and join active participant sessions. Click "Join Chat" to start moderating a conversation.
+            Monitor and join active participant sessions. Sessions marked as AI are handled automatically by the LLM participant.
           </p>
         </div>
 
@@ -159,7 +160,9 @@ export default function ModeratorDashboard() {
               </p>
             </div>
           ) : (
-            activeSessions.map((session) => (
+            activeSessions.map((session) => {
+              const isLLMSession = session.partnerType === 'llm';
+              return (
               <div
                 key={session.sessionId}
                 className="bg-white rounded-lg shadow-md border hover:shadow-lg transition-shadow"
@@ -181,6 +184,12 @@ export default function ModeratorDashboard() {
                     }`}>
                       {session.hasModeratorAssigned ? 'Moderated' : 'Available'}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-sm text-gray-500">Partner Type:</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${isLLMSession ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                      {isLLMSession ? 'AI Participant' : 'Human Participant'}
+                    </span>
                   </div>
 
                   <div className="space-y-3 mb-6">
@@ -215,13 +224,17 @@ export default function ModeratorDashboard() {
                       <button
                         onClick={() => handleJoinSession(session.sessionId)}
                         className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-                          session.hasModeratorAssigned
+                          session.hasModeratorAssigned || isLLMSession
                             ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
-                        disabled={session.hasModeratorAssigned}
+                        disabled={session.hasModeratorAssigned || isLLMSession}
                       >
-                        {session.hasModeratorAssigned ? 'Already Moderated' : 'Join Chat'}
+                        {isLLMSession
+                          ? 'AI Managed'
+                          : session.hasModeratorAssigned
+                            ? 'Already Moderated'
+                            : 'Join Chat'}
                       </button>
                     )}
                     
@@ -240,12 +253,13 @@ export default function ModeratorDashboard() {
                   </div>
                 </div>
               </div>
-            ))
+            );
+          })
           )}
         </div>
 
         {/* Statistics */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="text-2xl font-bold text-blue-600 mb-2">
               {activeSessions.length}
@@ -265,6 +279,13 @@ export default function ModeratorDashboard() {
               {activeSessions.filter(s => !s.hasModeratorAssigned).length}
             </div>
             <div className="text-sm text-gray-600">Sessions Awaiting Moderator</div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="text-2xl font-bold text-purple-600 mb-2">
+              {activeSessions.filter(s => s.partnerType === 'llm').length}
+            </div>
+            <div className="text-sm text-gray-600">AI-Managed Sessions</div>
           </div>
         </div>
       </div>

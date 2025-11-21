@@ -40,6 +40,7 @@ export default function ModeratorChat() {
   const [isParticipantTyping, setIsParticipantTyping] = useState(false);
   const [participantConnected, setParticipantConnected] = useState(true);
   const [isChatEnded, setIsChatEnded] = useState(false);
+  const [partnerType, setPartnerType] = useState<'human' | 'llm'>('human');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -70,6 +71,18 @@ export default function ModeratorChat() {
     // Listen for session join confirmation
     socketService.onSessionJoined((data) => {
       console.log('Moderator joined session:', data);
+      if (data.partnerType) {
+        setPartnerType(data.partnerType);
+        if (data.partnerType === 'llm') {
+          alert('This session is handled by the AI participant. Returning to the dashboard.');
+          router.push('/moderator');
+        }
+      }
+    });
+
+    socketService.onJoinError((data) => {
+      alert(data.error || 'Unable to join this session at the moment.');
+      router.push('/moderator');
     });
 
     // Listen for chat history
@@ -222,11 +235,14 @@ export default function ModeratorChat() {
                 ←
               </button>
               
-              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full ${participantConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                 <span className="text-sm text-gray-600">
                   Participant {participantConnected ? 'Online' : 'Offline'}
                 </span>
+                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${partnerType === 'llm' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {partnerType === 'llm' ? 'AI Participant' : 'Human Participant'}
+                  </span>
               </div>
             </div>
             {!isChatEnded && (
@@ -326,7 +342,9 @@ export default function ModeratorChat() {
               </button>
             </div>
             <p className="text-sm text-gray-500 mt-3">
-              You are moderating as a human participant. Respond naturally and authentically.
+              {partnerType === 'llm'
+                ? 'This session is AI-managed. Please allow the LLM participant to respond and monitor from the dashboard.'
+                : 'You are moderating as a human participant. Respond naturally and authentically.'}
             </p>
           </div>
         </div>

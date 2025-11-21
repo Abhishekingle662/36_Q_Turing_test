@@ -12,6 +12,7 @@ export interface ISession extends Document {
     moderatorId?: string;
     status: 'active' | 'inactive';
     lastActivity: Date;
+    partnerType: 'human' | 'llm';
     messages: IMessage[];
 }
 
@@ -27,6 +28,7 @@ const SessionSchema = new Schema({
     moderatorId: { type: String },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     lastActivity: { type: Date, default: Date.now },
+    partnerType: { type: String, enum: ['human', 'llm'], default: 'human' },
     messages: [MessageSchema]
 }, {
     timestamps: true

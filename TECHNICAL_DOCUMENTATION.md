@@ -65,7 +65,7 @@ This real-time chat system was developed for the Q-Turing Test research platform
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Participant   │    │     Socket      │    │    Moderator    │
 │   Client App    │◄──►│   Server        │◄──►│   Dashboard     │
-│  (Port 3001)    │    │  (Port 3002)    │    │  (Port 3001)    │
+│  (Port 3005)    │    │  (Port 3006)    │    │  (Port 3005)    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          │              ┌─────────────────┐              │
@@ -146,7 +146,7 @@ socket.on('clear-inactive-sessions', handleCleanup);
 ## 🖥 Backend Infrastructure
 
 ### Server Architecture
-The backend consists of a dedicated Socket.IO server running on port 3002, separate from the Next.js application server. This separation provides:
+The backend consists of a dedicated Socket.IO server running on port 3006, separate from the Next.js application server. This separation provides:
 
 - **Independent scaling** of WebSocket connections
 - **Dedicated resource allocation** for real-time features
@@ -353,9 +353,9 @@ npm install
 npm run dev:full
 
 # Access points:
-# - Participant interface: http://localhost:3001/chat
-# - Moderator dashboard: http://localhost:3001/moderator
-# - Socket server: ws://localhost:3002
+# - Participant interface: http://localhost:3005/chat
+# - Moderator dashboard: http://localhost:3005/moderator
+# - Socket server: ws://localhost:3006
 ```
 
 ### Production Deployment
@@ -367,8 +367,8 @@ npm run build
 npm start & npm run socket:prod
 
 # Environment variables:
-SOCKET_PORT=3002
-NEXT_PUBLIC_SOCKET_URL=wss://your-domain.com:3002
+SOCKET_PORT=3006
+NEXT_PUBLIC_SOCKET_URL=wss://your-domain.com:3006
 ```
 
 ### Docker Deployment
@@ -380,7 +380,7 @@ COPY package*.json ./
 RUN npm ci --only=production
 COPY . .
 RUN npm run build
-EXPOSE 3001 3002
+EXPOSE 3005 3006
 CMD ["npm", "run", "start:prod"]
 ```
 
@@ -415,7 +415,7 @@ window.location.reload();
 #### Port Conflicts
 ```bash
 # Check port usage
-netstat -ano | findstr :3002
+netstat -ano | findstr :3006
 # Kill conflicting processes
 taskkill /f /im node.exe
 ```
