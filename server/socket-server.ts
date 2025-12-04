@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { connectDB } from './db.js';
-import { Session } from './models.js';
+import { promises as fs } from 'fs';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { generateLLMResponse, isLLMEnabled } from './llm.js';
 
 const httpServer = createServer();
@@ -13,28 +14,95 @@ const io = new Server(httpServer, {
   }
 });
 
-// Connect to MongoDB
-connectDB();
+// In-memory storage for sessions and users
+const chatSessions = new Map<string, {
+  participantId: string;
+  status: 'active' | 'inactive';
+  lastActivity: Date;
+  partnerType?: 'human' | 'llm';
+  messages: Array<{
+    id: string;
+    content: string;
+    sender: 'participant' | 'moderator';
+    timestamp: Date;
+  }>;
+  moderatorId?: string;
+}>();
+
+// Partner type distribution tracking
+const sessionStats = { human: 0, llm: 0 };
+
+// Setup exports directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const exportsDir = resolve(__dirname, '../exports');
+
+// Ensure exports directory exists
+const ensureExportsDirExists = async () => {
+  try {
+    await fs.mkdir(exportsDir, { recursive: true });
+  } catch (err) {
+    console.error('Error creating exports directory:', err);
+  }
+};
+
+// Export session data to JSON file
+const exportSessionData = async (sessionId: string, session: any) => {
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `session_${sessionId}_${timestamp}.json`;
+    const filepath = resolve(exportsDir, filename);
+    
+    const exportData = {
+      sessionId,
+      exportedAt: new Date().toISOString(),
+      partnerType: session.partnerType,
+      status: session.status,
+      lastActivity: session.lastActivity,
+      messageCount: session.messages.length,
+      messages: session.messages.map((msg: any) => ({
+        id: msg.id,
+        content: msg.content,
+        sender: msg.sender,
+        timestamp: msg.timestamp
+      }))
+    };
+    
+    await fs.writeFile(filepath, JSON.stringify(exportData, null, 2), 'utf-8');
+    console.log(`[EXPORT] Session data exported: ${filename}`);
+    return filename;
+  } catch (err) {
+    console.error('Error exporting session data:', err);
+    return null;
+  }
+};
+
+// Initialize exports directory
+await ensureExportsDirExists();
 
 // Store connected users in memory (ephemeral)
 const connectedUsers = new Map<string, { socketId: string; userType: 'participant' | 'moderator'; sessionId?: string; lastActive: Date }>();
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
-  console.log('SERVER VERSION: DEBUG-INACTIVE-FIX-V1');
+  console.log('SERVER VERSION: IN-MEMORY-STORAGE-V1');
 
   // Helper to broadcast active sessions
-  const broadcastActiveSessions = async () => {
+  const broadcastActiveSessions = () => {
     try {
-      const sessions = await Session.find().sort({ lastActivity: -1 });
-      const activeSessions = sessions.map(session => ({
+      const activeSessions = Array.from(chatSessions.values()).map(session => ({
         sessionId: session.participantId,
         participantId: session.participantId,
         hasModeratorAssigned: !!session.moderatorId,
         messageCount: session.messages.length,
         status: session.status,
         partnerType: session.partnerType || 'human'
-      }));
+      })).sort((a, b) => {
+        const sessionA = chatSessions.get(a.participantId);
+        const sessionB = chatSessions.get(b.participantId);
+        if (!sessionA || !sessionB) return 0;
+        return sessionB.lastActivity.getTime() - sessionA.lastActivity.getTime();
+      });
       io.emit('active-sessions', activeSessions);
     } catch (err) {
       console.error("Error broadcasting active sessions:", err);
@@ -42,7 +110,7 @@ io.on('connection', (socket) => {
   };
 
   // Handle user joining as participant or moderator
-  socket.on('join-session', async (data: { userType: 'participant' | 'moderator'; sessionId?: string; participantId?: string }) => {
+  socket.on('join-session', (data: { userType: 'participant' | 'moderator'; sessionId?: string; participantId?: string }) => {
     const { userType, sessionId, participantId } = data;
 
     if (userType === 'participant') {
@@ -50,17 +118,28 @@ io.on('connection', (socket) => {
       const targetSessionId = participantId || `session_${Date.now()}`;
 
       try {
-        let session = await Session.findOne({ participantId: targetSessionId });
+        let session = chatSessions.get(targetSessionId);
 
         if (!session) {
           // Create new session only if it doesn't exist
-          session = await Session.create({
+          // Assign partner type: 50% human, 50% llm (Math.random() returns 0.0 to 0.999...)
+          const randomValue = Math.random();
+          const assignedPartnerType = randomValue < 0.5 ? 'human' : 'llm';
+          session = {
             participantId: targetSessionId,
             status: 'active',
             lastActivity: new Date(),
-            partnerType: isLLMEnabled() && Math.random() < 0.5 ? 'llm' : 'human',
+            partnerType: assignedPartnerType,
             messages: []
-          });
+          };
+          chatSessions.set(targetSessionId, session);
+
+          // Track distribution
+          sessionStats[assignedPartnerType]++;
+          const total = sessionStats.human + sessionStats.llm;
+          const humanPercent = ((sessionStats.human / total) * 100).toFixed(1);
+          const llmPercent = ((sessionStats.llm / total) * 100).toFixed(1);
+          console.log(`[STATS] New session: ${assignedPartnerType.toUpperCase()} | Distribution: Human ${humanPercent}% | LLM ${llmPercent}%`);
 
           // Notify moderators about new participant
           socket.broadcast.emit('participant-joined', { sessionId: targetSessionId, participantId: targetSessionId });
@@ -71,9 +150,8 @@ io.on('connection', (socket) => {
           session.status = 'active';
           session.lastActivity = new Date();
           if (!session.partnerType) {
-            session.partnerType = isLLMEnabled() && Math.random() < 0.5 ? 'llm' : 'human';
+            session.partnerType = Math.random() < 0.5 ? 'llm' : 'human';
           }
-          await session.save();
 
           // If the session was inactive and is now active, notify moderators
           if (wasInactive) {
@@ -83,7 +161,7 @@ io.on('connection', (socket) => {
           console.log(`Participant ${targetSessionId} rejoined existing session`);
         }
 
-        await broadcastActiveSessions();
+        broadcastActiveSessions();
 
         connectedUsers.set(socket.id, { socketId: socket.id, userType: 'participant', sessionId: targetSessionId, lastActive: new Date() });
 
@@ -99,10 +177,9 @@ io.on('connection', (socket) => {
     } else if (userType === 'moderator' && sessionId) {
       // Moderator joining existing session
       try {
-        const session = await Session.findOne({ participantId: sessionId });
+        const session = chatSessions.get(sessionId);
         if (session && session.partnerType === 'human') {
           session.moderatorId = socket.id;
-          await session.save();
 
           connectedUsers.set(socket.id, { socketId: socket.id, userType: 'moderator', sessionId, lastActive: new Date() });
 
@@ -121,12 +198,12 @@ io.on('connection', (socket) => {
   });
 
   // Handle sending messages
-  socket.on('send-message', async (data: { sessionId: string; content: string; sender: 'participant' | 'moderator' }) => {
+  socket.on('send-message', (data: { sessionId: string; content: string; sender: 'participant' | 'moderator' }) => {
     const { sessionId, content, sender } = data;
     console.log(`Server: Received send-message for session ${sessionId} from ${sender}`);
 
     try {
-      const session = await Session.findOne({ participantId: sessionId });
+      const session = chatSessions.get(sessionId);
 
       if (session) {
         console.log(`Server: Session found for ${sessionId}, adding message`);
@@ -148,20 +225,29 @@ io.on('connection', (socket) => {
         };
 
         session.messages.push(message);
-        const savedSession = await session.save();
-        console.log(`Server: Message saved to DB. Message count: ${savedSession.messages.length}`);
+        console.log(`Server: Message saved to memory. Message count: ${session.messages.length}`);
 
         // Broadcast message to all users in the session
         io.to(sessionId).emit('new-message', message);
 
         console.log(`Message sent in session ${sessionId}:`, message);
 
+        // If this is an LLM session and the participant sent a message, generate LLM response
         if (sender === 'participant' && session.partnerType === 'llm' && isLLMEnabled()) {
           io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: true });
 
           (async () => {
             try {
-              const llmResponse = await generateLLMResponse(session);
+              // Convert session to format expected by LLM (ISession interface)
+              const sessionData = {
+                participantId: session.participantId,
+                status: session.status,
+                lastActivity: session.lastActivity,
+                partnerType: session.partnerType,
+                messages: session.messages
+              };
+              
+              const llmResponse = await generateLLMResponse(sessionData as any);
               if (!llmResponse) return;
 
               const llmMessage = {
@@ -173,7 +259,6 @@ io.on('connection', (socket) => {
 
               session.messages.push(llmMessage);
               session.lastActivity = new Date();
-              await session.save();
               io.to(sessionId).emit('new-message', llmMessage);
             } catch (error) {
               console.error('LLM response error:', error);
@@ -211,7 +296,7 @@ io.on('connection', (socket) => {
   });
 
   // Handle leaving a session
-  socket.on('leave-session', async (data: { sessionId: string }) => {
+  socket.on('leave-session', (data: { sessionId: string }) => {
     const { sessionId } = data;
     const user = connectedUsers.get(socket.id);
 
@@ -221,11 +306,10 @@ io.on('connection', (socket) => {
       try {
         // If participant is leaving, mark session as inactive
         if (user.userType === 'participant') {
-          const session = await Session.findOne({ participantId: sessionId });
+          const session = chatSessions.get(sessionId);
           if (session) {
             session.status = 'inactive';
             session.lastActivity = new Date();
-            await session.save();
 
             // Notify moderator that participant left
             socket.to(sessionId).emit('participant-left');
@@ -233,10 +317,9 @@ io.on('connection', (socket) => {
           }
         } else if (user.userType === 'moderator') {
           // If moderator is leaving, just remove moderator assignment
-          const session = await Session.findOne({ participantId: sessionId });
+          const session = chatSessions.get(sessionId);
           if (session) {
             session.moderatorId = undefined;
-            await session.save();
             socket.to(sessionId).emit('moderator-left');
           }
         }
@@ -250,28 +333,32 @@ io.on('connection', (socket) => {
   });
 
   // Handle clearing inactive sessions
-  socket.on('clear-inactive-sessions', async () => {
+  socket.on('clear-inactive-sessions', () => {
     try {
-      await Session.deleteMany({ status: 'inactive' });
-      await broadcastActiveSessions();
+      const inactiveSessions = Array.from(chatSessions.entries())
+        .filter(([, session]) => session.status === 'inactive')
+        .map(([key]) => key);
+      
+      inactiveSessions.forEach(key => chatSessions.delete(key));
+      broadcastActiveSessions();
     } catch (err) {
       console.error("Error clearing inactive sessions:", err);
     }
   });
 
   // Handle deleting a specific inactive session
-  socket.on('delete-session', async (data: { sessionId: string }) => {
+  socket.on('delete-session', (data: { sessionId: string }) => {
     const { sessionId } = data;
     console.log(`Server: Received delete-session request for ${sessionId}`);
 
     try {
-      const session = await Session.findOne({ participantId: sessionId });
+      const session = chatSessions.get(sessionId);
 
       if (session) {
-        await Session.deleteOne({ participantId: sessionId });
+        chatSessions.delete(sessionId);
         console.log(`Server: Session ${sessionId} deleted by moderator successfully`);
 
-        await broadcastActiveSessions();
+        broadcastActiveSessions();
         socket.emit('session-deleted', { sessionId });
       } else {
         const error = 'Session not found';
@@ -280,7 +367,7 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error("Error deleting session:", err);
-      socket.emit('delete-error', { sessionId, error: 'Database error' });
+      socket.emit('delete-error', { sessionId, error: 'Operation failed' });
     }
   });
 
@@ -290,19 +377,24 @@ io.on('connection', (socket) => {
     console.log(`Server: Received end-session request for ${sessionId}`);
 
     try {
-      const session = await Session.findOne({ participantId: sessionId });
+      const session = chatSessions.get(sessionId);
       console.log(`Server: Processing end-session for ${sessionId}. FORCE SETTING TO INACTIVE.`);
 
       if (session) {
         session.status = 'inactive';
         session.lastActivity = new Date();
-        await session.save();
+
+        // Export session data before ending
+        const exportedFile = await exportSessionData(sessionId, session);
+        if (exportedFile) {
+          socket.emit('session-exported', { sessionId, filename: exportedFile });
+        }
 
         // Notify all users in the session that it has ended
         io.to(sessionId).emit('session-ended');
         console.log(`Server: Session ${sessionId} ended by moderator. Emitted session-ended to room ${sessionId}`);
 
-        await broadcastActiveSessions();
+        broadcastActiveSessions();
       } else {
         console.log(`Server: Session ${sessionId} not found`);
       }
@@ -312,24 +404,22 @@ io.on('connection', (socket) => {
   });
 
   // Handle disconnect
-  socket.on('disconnect', async () => {
+  socket.on('disconnect', () => {
     const user = connectedUsers.get(socket.id);
     console.log(`User disconnected: ${socket.id}`, user ? `(${user.userType} in session ${user.sessionId})` : '(unknown user)');
 
     if (user && user.sessionId) {
       try {
-        const session = await Session.findOne({ participantId: user.sessionId });
+        const session = chatSessions.get(user.sessionId);
         if (session) {
           if (user.userType === 'moderator') {
             session.moderatorId = undefined;
-            await session.save();
             socket.to(user.sessionId).emit('moderator-left');
             console.log(`Moderator left session ${user.sessionId}`);
           } else if (user.userType === 'participant') {
             // Mark session as inactive when participant disconnects
             session.status = 'inactive';
             session.lastActivity = new Date();
-            await session.save();
             // Notify moderator that participant disconnected
             socket.to(user.sessionId).emit('participant-left');
             console.log(`Participant left session ${user.sessionId} - marked as inactive`);

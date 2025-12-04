@@ -1,0 +1,2 @@
+# This directory stores exported chat session data
+# Each session is exported as a JSON file when the moderator ends the session

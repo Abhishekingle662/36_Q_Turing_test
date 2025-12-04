@@ -55,7 +55,7 @@ export default function ChatPage() {
     {
       id: '1',
       content: 'Welcome to the research study conversation interface. You have been paired with another participant. Please be respectful and engage naturally in the conversation.',
-      sender: 'ai',
+      sender: 'user', // System message, not from a participant
       timestamp: new Date(),
     }
   ]);
@@ -90,13 +90,13 @@ export default function ChatPage() {
   // Mock participant data (will be fetched from database in production)
   const [participantInfo] = useState<ParticipantInfo>({
     id: '1',
-    name: 'Alex Johnson',
-    age: 28,
-    occupation: 'Software Engineer',
+    name: 'Carolina',
+    age: 26,
+    occupation: 'Research Assistant',
     location: 'Indianapolis, IN',
-    interests: ['Technology', 'Reading', 'Hiking', 'Photography'],
-    bio: 'I enjoy discussing technology trends and outdoor activities. Always curious about new ideas and perspectives.',
-    profileImage: '/male.png'
+    interests: ['Hiking', 'Reading Sci-Fi', 'Coffee Exploration', 'Communication Studies'],
+    bio: 'I\'m a research assistant studying how people communicate and build connections. I enjoy hiking, reading sci-fi, exploring new coffee shops, and I\'m looking forward to chatting with you!',
+    profileImage: '/female.png'
   });
 
   // DOM REFERENCES: For direct DOM manipulation
@@ -404,13 +404,7 @@ export default function ChatPage() {
 
             {/* Left side: Logo and title */}
             <div className="flex items-center gap-3">
-              {/* IU Logo */}
-              <Image
-                src="/Indiana_Hoosiers_logo.svg"
-                alt="Indiana University Logo"
-                width={32}
-                height={40}
-              />
+              
               {/* Title and subtitle */}
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Research Study Chat</h1>
@@ -499,12 +493,7 @@ export default function ChatPage() {
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                Online now
-              </div>
-            </div>
+            
           </div>
 
           {/* Main Chat Interface */}

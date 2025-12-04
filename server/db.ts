@@ -1,3 +1,7 @@
+// MongoDB connection disabled - using in-memory storage (Maps) for now
+// To re-enable MongoDB, uncomment the code below and set up a MongoDB instance
+
+/*
 import mongoose from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-research';
@@ -15,4 +19,10 @@ export const connectDB = async () => {
         console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
         process.exit(1);
     }
+};
+*/
+
+export const connectDB = async () => {
+    // Placeholder - database disabled for in-memory storage
+    return Promise.resolve();
 };

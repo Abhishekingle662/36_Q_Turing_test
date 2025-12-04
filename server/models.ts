@@ -1,4 +1,5 @@
-import mongoose, { Schema, Document } from 'mongoose';
+// TypeScript interfaces for in-memory session storage
+// MongoDB models disabled - using in-memory storage (Maps) for now
 
 export interface IMessage {
     id: string;
@@ -6,6 +7,19 @@ export interface IMessage {
     sender: 'participant' | 'moderator';
     timestamp: Date;
 }
+
+export interface ISession {
+    participantId: string;
+    moderatorId?: string;
+    status: 'active' | 'inactive';
+    lastActivity: Date;
+    partnerType?: 'human' | 'llm';
+    messages: IMessage[];
+}
+
+// Placeholder - models moved to in-memory Maps
+/*
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ISession extends Document {
     participantId: string;
@@ -35,3 +49,4 @@ const SessionSchema = new Schema({
 });
 
 export const Session = mongoose.models.Session || mongoose.model<ISession>('Session', SessionSchema);
+*/
