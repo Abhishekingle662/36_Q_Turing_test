@@ -1,0 +1,46 @@
+{
+  "sessionId": "participant_1765477226740",
+  "exportedAt": "2025-12-11T18:21:02.945Z",
+  "partnerType": "llm",
+  "status": "active",
+  "lastActivity": "2025-12-11T18:20:58.396Z",
+  "messageCount": 6,
+  "messages": [
+    {
+      "id": "msg_1765477236553_dy8n8yj6t_0",
+      "content": "hi",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:20:36.553Z"
+    },
+    {
+      "id": "msg_1765477238049_2hed7y1jq_1",
+      "content": "Hello! I'm Carolina, and I'm really looking forward to our conversation today. To start, if you could have anyone in the world as a dinner guest, whom would you choose?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:20:38.049Z"
+    },
+    {
+      "id": "msg_1765477249118_hj2j9j0cq_2",
+      "content": "my girlfriend",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:20:49.118Z"
+    },
+    {
+      "id": "msg_1765477250079_ijck2hunx_3",
+      "content": "That's lovely! Sharing a meal with someone special can create such meaningful moments. What is it about your girlfriend that makes you want her as your dinner guest?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:20:50.079Z"
+    },
+    {
+      "id": "msg_1765477257189_zmt4pxfpm_4",
+      "content": "her humour",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:20:57.189Z"
+    },
+    {
+      "id": "msg_1765477258396_5e8469wr3_5",
+      "content": "Humor is such an important quality! It can really lighten the atmosphere and make conversations enjoyable. Moving on to the next question: would you like to be famous? If so, in what way?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:20:58.396Z"
+    }
+  ]
+}

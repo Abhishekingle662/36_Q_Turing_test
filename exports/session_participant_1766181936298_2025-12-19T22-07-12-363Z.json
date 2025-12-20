@@ -1,0 +1,70 @@
+{
+  "sessionId": "participant_1766181936298",
+  "exportedAt": "2025-12-19T22:07:12.363Z",
+  "partnerType": "llm",
+  "status": "active",
+  "lastActivity": "2025-12-19T22:07:03.850Z",
+  "messageCount": 10,
+  "messages": [
+    {
+      "id": "msg_1766181949720_r0izme2r2_0",
+      "content": "hi",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:05:49.720Z"
+    },
+    {
+      "id": "msg_1766181952306_m6lygl7yr_1",
+      "content": "Hello! I'm Carolina, and I'm here to chat with you as part of a study on communication and connection. To start off, given the choice of anyone in the world, whom would you want as a dinner guest?",
+      "sender": "moderator",
+      "timestamp": "2025-12-19T22:05:52.306Z"
+    },
+    {
+      "id": "msg_1766181962957_tdkw07158_2",
+      "content": "my firend from openai",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:06:02.957Z"
+    },
+    {
+      "id": "msg_1766181964958_16cskdywm_3",
+      "content": "That's great! It sounds like you have a meaningful connection with your friend. What qualities do you appreciate most about them? Now, moving on to the next question: Would you like to be famous? In what way?",
+      "sender": "moderator",
+      "timestamp": "2025-12-19T22:06:04.958Z"
+    },
+    {
+      "id": "msg_1766182000939_tvro3ajo0_4",
+      "content": "i like that they work fast and i would love to be famous one day by becoming a millionaire and have the freedom to travel the world",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:06:40.939Z"
+    },
+    {
+      "id": "msg_1766182002831_cff13tntl_5",
+      "content": "That sounds like an exciting aspiration! Having the freedom to travel and experience new places can be incredibly fulfilling. Now, let's move to the next question: If you were able to live to the age of 90 and retain either the mind or body of a 30-year-old for the last 60 years of your life, which would you want?",
+      "sender": "moderator",
+      "timestamp": "2025-12-19T22:06:42.831Z"
+    },
+    {
+      "id": "msg_1766182011419_b9nkbu844_6",
+      "content": "option B",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:06:51.419Z"
+    },
+    {
+      "id": "msg_1766182014410_u7nb0olni_7",
+      "content": "Choosing to retain the body of a 30-year-old sounds like a wonderful way to maintain vitality and energy throughout life! It’s fascinating to think about how that could enhance your experiences. Now, for the next question: For what in your life do you feel most grateful?",
+      "sender": "moderator",
+      "timestamp": "2025-12-19T22:06:54.410Z"
+    },
+    {
+      "id": "msg_1766182021756_u28mlspky_8",
+      "content": "my parents",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:07:01.756Z"
+    },
+    {
+      "id": "msg_1766182023850_hr1v0n2k5_9",
+      "content": "That's beautiful! Having supportive parents can make such a positive impact on our lives. It's wonderful that you recognize their importance. Now, let's move on to the next question: If a crystal ball could tell you the truth about yourself, your life, the future, or anything else, what would you want to know?",
+      "sender": "moderator",
+      "timestamp": "2025-12-19T22:07:03.850Z"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "sessionId": "participant_1765483197692",
+  "exportedAt": "2025-12-11T20:01:27.944Z",
+  "partnerType": "llm",
+  "status": "inactive",
+  "lastActivity": "2025-12-11T20:01:27.943Z",
+  "messageCount": 6,
+  "messages": [
+    {
+      "id": "msg_1765483225287_fk7hyox08_0",
+      "content": "hi",
+      "sender": "participant",
+      "timestamp": "2025-12-11T20:00:25.287Z"
+    },
+    {
+      "id": "msg_1765483226803_o8wnk2bjw_1",
+      "content": "Hello! I'm Carolina, and I'm here to chat with you for our study about communication and connection. Let's get started! Given the choice of anyone in the world, whom would you want as a dinner guest?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T20:00:26.803Z"
+    },
+    {
+      "id": "msg_1765483261134_3byqq15ib_2",
+      "content": "i would take paula with me who is a good friend of mine",
+      "sender": "participant",
+      "timestamp": "2025-12-11T20:01:01.134Z"
+    },
+    {
+      "id": "msg_1765483262964_x4rmrjcjw_3",
+      "content": "That sounds lovely! Sharing a dinner with a good friend like Paula can lead to heartfelt conversations and great memories. Would you like to be famous? In what way?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T20:01:02.964Z"
+    },
+    {
+      "id": "msg_1765483274602_m1fhusf0t_4",
+      "content": "not at the moment",
+      "sender": "participant",
+      "timestamp": "2025-12-11T20:01:14.602Z"
+    },
+    {
+      "id": "msg_1765483276579_3jzhrlxdg_5",
+      "content": "I understand; fame can come with its own challenges and pressures. If you were able to live to the age of 90 and retain either the mind or body of a 30-year-old for the last 60 years of your life, which would you want?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T20:01:16.579Z"
+    }
+  ]
+}

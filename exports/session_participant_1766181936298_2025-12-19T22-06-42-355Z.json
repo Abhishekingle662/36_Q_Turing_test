@@ -1,0 +1,40 @@
+{
+  "sessionId": "participant_1766181936298",
+  "exportedAt": "2025-12-19T22:06:42.356Z",
+  "partnerType": "llm",
+  "status": "active",
+  "lastActivity": "2025-12-19T22:06:40.939Z",
+  "messageCount": 5,
+  "messages": [
+    {
+      "id": "msg_1766181949720_r0izme2r2_0",
+      "content": "hi",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:05:49.720Z"
+    },
+    {
+      "id": "msg_1766181952306_m6lygl7yr_1",
+      "content": "Hello! I'm Carolina, and I'm here to chat with you as part of a study on communication and connection. To start off, given the choice of anyone in the world, whom would you want as a dinner guest?",
+      "sender": "moderator",
+      "timestamp": "2025-12-19T22:05:52.306Z"
+    },
+    {
+      "id": "msg_1766181962957_tdkw07158_2",
+      "content": "my firend from openai",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:06:02.957Z"
+    },
+    {
+      "id": "msg_1766181964958_16cskdywm_3",
+      "content": "That's great! It sounds like you have a meaningful connection with your friend. What qualities do you appreciate most about them? Now, moving on to the next question: Would you like to be famous? In what way?",
+      "sender": "moderator",
+      "timestamp": "2025-12-19T22:06:04.958Z"
+    },
+    {
+      "id": "msg_1766182000939_tvro3ajo0_4",
+      "content": "i like that they work fast and i would love to be famous one day by becoming a millionaire and have the freedom to travel the world",
+      "sender": "participant",
+      "timestamp": "2025-12-19T22:06:40.939Z"
+    }
+  ]
+}

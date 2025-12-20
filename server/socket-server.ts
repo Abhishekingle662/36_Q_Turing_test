@@ -5,13 +5,25 @@ import { promises as fs } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { generateLLMResponse, isLLMEnabled } from './llm.js';
+import { initializeGoogleSheets, exportMessageToGoogleSheets, exportSessionSummaryToGoogleSheets, isGoogleSheetsEnabled } from './google-sheets.js';
+import { exportMessageToExcel, exportSessionSummaryToExcel } from './excel-export.js';
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
   cors: {
     origin: ["http://localhost:3005", "http://localhost:3000"],
     methods: ["GET", "POST"]
-  }
+  },
+  // Increase timeouts to prevent disconnections during long operations
+  pingTimeout: 60000, // 60 seconds (default is 20s)
+  pingInterval: 25000, // 25 seconds (default is 25s)
+  // Connection state recovery - enables reconnection with session preservation
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+    skipMiddlewares: true,
+  },
+  // Allow larger message sizes for long LLM responses
+  maxHttpBufferSize: 1e8, // 100 MB
 });
 
 // In-memory storage for sessions and users
@@ -80,12 +92,139 @@ const exportSessionData = async (sessionId: string, session: any) => {
 // Initialize exports directory
 await ensureExportsDirExists();
 
+// Initialize Google Sheets export (optional, will skip if credentials not provided)
+initializeGoogleSheets();
+
+// Global error handlers to prevent server crashes
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  console.error('Server will continue running...');
+  // Don't exit - keep server alive
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('Server will continue running...');
+  // Don't exit - keep server alive
+});
+
+// Graceful shutdown handler
+process.on('SIGTERM', async () => {
+  console.log('\n📛 SIGTERM received. Starting graceful shutdown...');
+  
+  // Stop all auto-export intervals
+  llmSessionExportIntervals.forEach((interval, sessionId) => {
+    clearInterval(interval);
+    console.log(`Stopped auto-export for session ${sessionId}`);
+  });
+  llmSessionExportIntervals.clear();
+  
+  // Export all active sessions before shutdown
+  const exportPromises = Array.from(chatSessions.entries()).map(([sessionId, session]) => 
+    exportSessionData(sessionId, session)
+  );
+  await Promise.allSettled(exportPromises);
+  
+  // Close server
+  io.close(() => {
+    console.log('Socket.IO server closed');
+    process.exit(0);
+  });
+  
+  // Force exit after 10 seconds if graceful shutdown fails
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+});
+
+process.on('SIGINT', async () => {
+  console.log('\n📛 SIGINT received. Starting graceful shutdown...');
+  
+  // Stop all auto-export intervals
+  llmSessionExportIntervals.forEach((interval) => clearInterval(interval));
+  llmSessionExportIntervals.clear();
+  
+  // Export all active sessions
+  const exportPromises = Array.from(chatSessions.entries()).map(([sessionId, session]) => 
+    exportSessionData(sessionId, session)
+  );
+  await Promise.allSettled(exportPromises);
+  
+  io.close(() => {
+    console.log('Socket.IO server closed');
+    process.exit(0);
+  });
+  
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+});
+
 // Store connected users in memory (ephemeral)
 const connectedUsers = new Map<string, { socketId: string; userType: 'participant' | 'moderator'; sessionId?: string; lastActive: Date }>();
 
+// Track LLM session auto-export intervals
+const llmSessionExportIntervals = new Map<string, NodeJS.Timeout>();
+
+// Auto-export LLM session data at regular intervals
+const startLLMSessionAutoExport = (sessionId: string, session: any) => {
+  // Clear any existing interval for this session
+  if (llmSessionExportIntervals.has(sessionId)) {
+    clearInterval(llmSessionExportIntervals.get(sessionId)!);
+  }
+
+  // Set up auto-export every 30 seconds for LLM sessions
+  const intervalId = setInterval(async () => {
+    try {
+      const exportedFile = await exportSessionData(sessionId, session);
+      if (exportedFile) {
+        console.log(`[AUTO-EXPORT] LLM session ${sessionId} auto-exported: ${exportedFile}`);
+      }
+    } catch (err) {
+      console.error(`[AUTO-EXPORT] Error auto-exporting LLM session ${sessionId}:`, err);
+    }
+  }, 30000); // Export every 30 seconds
+
+  llmSessionExportIntervals.set(sessionId, intervalId);
+};
+
+// Stop auto-export for a session
+const stopLLMSessionAutoExport = (sessionId: string) => {
+  if (llmSessionExportIntervals.has(sessionId)) {
+    clearInterval(llmSessionExportIntervals.get(sessionId)!);
+    llmSessionExportIntervals.delete(sessionId);
+  }
+};
+
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-  console.log('SERVER VERSION: IN-MEMORY-STORAGE-V1');
+  console.log('✅ User connected:', socket.id);
+  console.log('SERVER VERSION: IN-MEMORY-STORAGE-V1-STABLE');
+  
+  // Set socket timeout to prevent disconnections (5 minutes)
+  socket.timeout(300000);
+  
+  // Handle socket errors to prevent crashes
+  socket.on('error', (error) => {
+    console.error(`Socket error for ${socket.id}:`, error);
+    // Don't disconnect - just log the error
+  });
+  
+  // Connection recovery handler
+  socket.on('recover', () => {
+    console.log(`🔄 Socket ${socket.id} recovered connection`);
+    const user = connectedUsers.get(socket.id);
+    if (user && user.sessionId) {
+      const session = chatSessions.get(user.sessionId);
+      if (session && session.status === 'inactive') {
+        session.status = 'active';
+        session.lastActivity = new Date();
+        broadcastActiveSessions();
+        console.log(`Session ${user.sessionId} reactivated after connection recovery`);
+      }
+    }
+  });
 
   // Helper to broadcast active sessions
   const broadcastActiveSessions = () => {
@@ -140,6 +279,11 @@ io.on('connection', (socket) => {
           const humanPercent = ((sessionStats.human / total) * 100).toFixed(1);
           const llmPercent = ((sessionStats.llm / total) * 100).toFixed(1);
           console.log(`[STATS] New session: ${assignedPartnerType.toUpperCase()} | Distribution: Human ${humanPercent}% | LLM ${llmPercent}%`);
+
+          // Start auto-export for LLM sessions
+          if (assignedPartnerType === 'llm') {
+            startLLMSessionAutoExport(targetSessionId, session);
+          }
 
           // Notify moderators about new participant
           socket.broadcast.emit('participant-joined', { sessionId: targetSessionId, participantId: targetSessionId });
@@ -198,7 +342,7 @@ io.on('connection', (socket) => {
   });
 
   // Handle sending messages
-  socket.on('send-message', (data: { sessionId: string; content: string; sender: 'participant' | 'moderator' }) => {
+  socket.on('send-message', async (data: { sessionId: string; content: string; sender: 'participant' | 'moderator' }) => {
     const { sessionId, content, sender } = data;
     console.log(`Server: Received send-message for session ${sessionId} from ${sender}`);
 
@@ -227,6 +371,12 @@ io.on('connection', (socket) => {
         session.messages.push(message);
         console.log(`Server: Message saved to memory. Message count: ${session.messages.length}`);
 
+        // Auto-export message to Excel and Google Sheets
+        await exportMessageToExcel(message, sessionId, session.partnerType);
+        if (isGoogleSheetsEnabled()) {
+          await exportMessageToGoogleSheets(message, sessionId, session.partnerType);
+        }
+
         // Broadcast message to all users in the session
         io.to(sessionId).emit('new-message', message);
 
@@ -236,7 +386,8 @@ io.on('connection', (socket) => {
         if (sender === 'participant' && session.partnerType === 'llm' && isLLMEnabled()) {
           io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: true });
 
-          (async () => {
+          // Use setTimeout to ensure this runs asynchronously without blocking
+          setTimeout(async () => {
             try {
               // Convert session to format expected by LLM (ISession interface)
               const sessionData = {
@@ -247,8 +398,14 @@ io.on('connection', (socket) => {
                 messages: session.messages
               };
               
+              console.log(`[LLM] Generating response for session ${sessionId}...`);
               const llmResponse = await generateLLMResponse(sessionData as any);
-              if (!llmResponse) return;
+              
+              if (!llmResponse) {
+                console.warn(`[LLM] No response generated for session ${sessionId}`);
+                io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: false });
+                return;
+              }
 
               const llmMessage = {
                 id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${session.messages.length}`,
@@ -257,15 +414,35 @@ io.on('connection', (socket) => {
                 timestamp: new Date()
               };
 
+              console.log(`[LLM] Response generated for session ${sessionId}`);
+              
               session.messages.push(llmMessage);
               session.lastActivity = new Date();
               io.to(sessionId).emit('new-message', llmMessage);
+
+              // Auto-export LLM response to Excel and Google Sheets (non-blocking)
+              exportMessageToExcel(llmMessage, sessionId, session.partnerType)
+                .catch(err => console.error('[EXPORT] Excel export failed:', err));
+              
+              if (isGoogleSheetsEnabled()) {
+                exportMessageToGoogleSheets(llmMessage, sessionId, session.partnerType)
+                  .catch(err => console.error('[EXPORT] Google Sheets export failed:', err));
+              }
             } catch (error) {
-              console.error('LLM response error:', error);
+              console.error('[LLM] Response generation error:', error);
+              // Send a fallback message to keep conversation flowing
+              const fallbackMessage = {
+                id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}_${session.messages.length}`,
+                content: "I apologize, I'm having trouble responding right now. Could you please repeat that?",
+                sender: 'moderator' as const,
+                timestamp: new Date()
+              };
+              session.messages.push(fallbackMessage);
+              io.to(sessionId).emit('new-message', fallbackMessage);
             } finally {
               io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: false });
             }
-          })();
+          }, 100); // Small delay to ensure message is sent before LLM processing
         }
       } else {
         console.error(`Server: Session NOT found for ${sessionId} during send-message`);
@@ -355,6 +532,9 @@ io.on('connection', (socket) => {
       const session = chatSessions.get(sessionId);
 
       if (session) {
+        // Stop auto-export for LLM sessions
+        stopLLMSessionAutoExport(sessionId);
+
         chatSessions.delete(sessionId);
         console.log(`Server: Session ${sessionId} deleted by moderator successfully`);
 
@@ -381,6 +561,9 @@ io.on('connection', (socket) => {
       console.log(`Server: Processing end-session for ${sessionId}. FORCE SETTING TO INACTIVE.`);
 
       if (session) {
+        // Stop auto-export for LLM sessions
+        stopLLMSessionAutoExport(sessionId);
+
         session.status = 'inactive';
         session.lastActivity = new Date();
 
@@ -389,6 +572,13 @@ io.on('connection', (socket) => {
         if (exportedFile) {
           socket.emit('session-exported', { sessionId, filename: exportedFile });
         }
+
+        // Export session summary to Excel and Google Sheets
+        await exportSessionSummaryToExcel(sessionId, session);
+        if (isGoogleSheetsEnabled()) {
+          await exportSessionSummaryToGoogleSheets(sessionId, session);
+        }
+        console.log(`[EXPORT] Session summary exported to Excel and Google Sheets for ${sessionId}`);
 
         // Notify all users in the session that it has ended
         io.to(sessionId).emit('session-ended');
@@ -420,6 +610,8 @@ io.on('connection', (socket) => {
             // Mark session as inactive when participant disconnects
             session.status = 'inactive';
             session.lastActivity = new Date();
+            // Stop auto-export for LLM sessions on participant disconnect
+            stopLLMSessionAutoExport(user.sessionId);
             // Notify moderator that participant disconnected
             socket.to(user.sessionId).emit('participant-left');
             console.log(`Participant left session ${user.sessionId} - marked as inactive`);

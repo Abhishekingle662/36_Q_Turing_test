@@ -73,10 +73,7 @@ export default function ModeratorChat() {
       console.log('Moderator joined session:', data);
       if (data.partnerType) {
         setPartnerType(data.partnerType);
-        if (data.partnerType === 'llm') {
-          alert('This session is handled by the AI participant. Returning to the dashboard.');
-          router.push('/moderator');
-        }
+        // Allow viewing LLM sessions without redirecting
       }
     });
 
@@ -183,7 +180,11 @@ export default function ModeratorChat() {
   };
 
   const handleEndChat = () => {
-    if (confirm('Are you sure you want to end this chat session? This will close the chat for the participant as well.')) {
+    const confirmMessage = partnerType === 'llm' 
+      ? 'Are you sure you want to end this AI session?\n\nAll chat data will be automatically exported to Excel and Google Sheets before ending.'
+      : 'Are you sure you want to end this chat session? This will close the chat for the participant as well.';
+    
+    if (confirm(confirmMessage)) {
       console.log('Moderator: Ending chat for session:', sessionId);
       socketService.endSession(sessionId!);
     }
@@ -246,12 +247,24 @@ export default function ModeratorChat() {
               </div>
             </div>
             {!isChatEnded && (
-              <button
-                onClick={handleEndChat}
-                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
-              >
-                End Chat
-              </button>
+              <div className="flex gap-2">
+                {partnerType === 'llm' && (
+                  <button
+                    onClick={handleEndChat}
+                    className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                  >
+                    🤖 End AI Session
+                  </button>
+                )}
+                {partnerType === 'human' && (
+                  <button
+                    onClick={handleEndChat}
+                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    End Chat
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -321,31 +334,50 @@ export default function ModeratorChat() {
 
           {/* Input Area */}
           <div className="p-8 border-t bg-gray-50 rounded-b-2xl">
-            <div className="flex gap-5">
-              <textarea
-                ref={inputRef}
-                value={inputMessage}
-                onChange={handleInputChange}
-                onKeyPress={handleKeyPress}
-                placeholder="Type your response as the moderator..."
-                rows={1}
-                className="flex-1 px-8 py-5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black text-lg resize-none"
-                disabled={!isConnected || !participantConnected}
-                style={{minHeight: '60px', maxHeight: '150px', overflow: 'auto'}}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!inputMessage.trim() || !isConnected || !participantConnected}
-                className="px-10 py-5 bg-blue-600 text-white rounded-2xl text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Send
-              </button>
-            </div>
-            <p className="text-sm text-gray-500 mt-3">
-              {partnerType === 'llm'
-                ? 'This session is AI-managed. Please allow the LLM participant to respond and monitor from the dashboard.'
-                : 'You are moderating as a human participant. Respond naturally and authentically.'}
-            </p>
+            {partnerType === 'llm' ? (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">🤖</span>
+                  <h3 className="font-semibold text-purple-800">AI Session - View Only</h3>
+                </div>
+                <p className="text-sm text-purple-700 mb-4">
+                  This session is being managed by the AI participant. You are viewing this conversation in real-time.
+                  The LLM is automatically responding to the participant's messages.
+                </p>
+                <div className="bg-white rounded-lg p-4 border border-purple-200">
+                  <p className="text-sm text-gray-600 flex items-center gap-2">
+                    <span>📊</span>
+                    <span>All messages are being automatically exported to Excel and Google Sheets</span>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-5">
+                  <textarea
+                    ref={inputRef}
+                    value={inputMessage}
+                    onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type your response as the moderator..."
+                    rows={1}
+                    className="flex-1 px-8 py-5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black text-lg resize-none"
+                    disabled={!isConnected || !participantConnected}
+                    style={{minHeight: '60px', maxHeight: '150px', overflow: 'auto'}}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={!inputMessage.trim() || !isConnected || !participantConnected}
+                    className="px-10 py-5 bg-blue-600 text-white rounded-2xl text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Send
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mt-3">
+                  You are moderating as a human participant. Respond naturally and authentically.
+                </p>
+              </>
+            )}
           </div>
         </div>
 

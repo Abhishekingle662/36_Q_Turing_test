@@ -1,0 +1,46 @@
+{
+  "sessionId": "participant_1765475990241",
+  "exportedAt": "2025-12-11T18:00:55.765Z",
+  "partnerType": "human",
+  "status": "inactive",
+  "lastActivity": "2025-12-11T18:00:55.764Z",
+  "messageCount": 6,
+  "messages": [
+    {
+      "id": "msg_1765476004756_4dnkkriup_0",
+      "content": "hello",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:00:04.756Z"
+    },
+    {
+      "id": "msg_1765476047140_x0pecluzd_1",
+      "content": "adsf",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:00:47.140Z"
+    },
+    {
+      "id": "msg_1765476048098_bih7drmnh_2",
+      "content": "asdf",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:00:48.098Z"
+    },
+    {
+      "id": "msg_1765476048711_c12j0mmlp_3",
+      "content": "asdf",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:00:48.711Z"
+    },
+    {
+      "id": "msg_1765476049504_sk6ah2j88_4",
+      "content": "asfd",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:00:49.504Z"
+    },
+    {
+      "id": "msg_1765476052298_v0zpe1wp0_5",
+      "content": "asdfasdfkajihsdfg",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:00:52.298Z"
+    }
+  ]
+}

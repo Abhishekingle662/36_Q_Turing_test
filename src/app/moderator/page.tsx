@@ -107,6 +107,13 @@ export default function ModeratorDashboard() {
     }
   };
 
+  const handleEndAISession = (sessionId: string, participantId: string) => {
+    if (confirm(`Are you sure you want to end this AI session?\n\nSession: ${sessionId.slice(-8)}\nParticipant: ${participantId.slice(-8)}\n\nAll chat data will be automatically exported before ending.`)) {
+      console.log('Ending AI session:', sessionId);
+      socketService.endSession(sessionId);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -220,21 +227,34 @@ export default function ModeratorDashboard() {
                       >
                         Participant Disconnected
                       </button>
+                    ) : isLLMSession ? (
+                      <>
+                        <button
+                          onClick={() => handleJoinSession(session.sessionId)}
+                          className="w-full py-2 px-4 rounded-lg font-medium transition-colors bg-purple-100 text-purple-700 hover:bg-purple-200"
+                        >
+                          👁️ View AI Session
+                        </button>
+                        <button
+                          onClick={() => handleEndAISession(session.sessionId, session.participantId)}
+                          className="w-full py-2 px-4 rounded-lg font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700"
+                        >
+                          🤖 End AI Session
+                        </button>
+                      </>
                     ) : (
                       <button
                         onClick={() => handleJoinSession(session.sessionId)}
                         className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-                          session.hasModeratorAssigned || isLLMSession
+                          session.hasModeratorAssigned
                             ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
-                        disabled={session.hasModeratorAssigned || isLLMSession}
+                        disabled={session.hasModeratorAssigned}
                       >
-                        {isLLMSession
-                          ? 'AI Managed'
-                          : session.hasModeratorAssigned
-                            ? 'Already Moderated'
-                            : 'Join Chat'}
+                        {session.hasModeratorAssigned
+                          ? 'Already Moderated'
+                          : 'Join Chat'}
                       </button>
                     )}
                     

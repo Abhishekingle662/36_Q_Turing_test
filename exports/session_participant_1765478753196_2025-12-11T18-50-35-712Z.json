@@ -1,0 +1,82 @@
+{
+  "sessionId": "participant_1765478753196",
+  "exportedAt": "2025-12-11T18:50:35.712Z",
+  "partnerType": "llm",
+  "status": "active",
+  "lastActivity": "2025-12-11T18:50:32.991Z",
+  "messageCount": 12,
+  "messages": [
+    {
+      "id": "msg_1765478775448_2ztkl7xdt_0",
+      "content": "hi",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:46:15.448Z"
+    },
+    {
+      "id": "msg_1765478777817_vu2bavdvh_1",
+      "content": "Hello! I'm Carolina, and I'm here to have a thoughtful conversation with you for our study. To start off, given the choice of anyone in the world, whom would you want as a dinner guest?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:46:17.817Z"
+    },
+    {
+      "id": "msg_1765478784284_kbr7ibx29_2",
+      "content": "my cat",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:46:24.284Z"
+    },
+    {
+      "id": "msg_1765478786108_ctwmm44d6_3",
+      "content": "That's a lovely choice! Cats can be such wonderful companions. What is it about your cat that makes you want to share a dinner with them?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:46:26.108Z"
+    },
+    {
+      "id": "msg_1765478794796_u8pem4eoi_4",
+      "content": "my cat's quite",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:46:34.796Z"
+    },
+    {
+      "id": "msg_1765478796962_atoaqzfyf_5",
+      "content": "It sounds like your cat has a calm and soothing presence. It's nice to spend time with someone who brings a sense of peace. Moving on to the next question: would you like to be famous? In what way?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:46:36.962Z"
+    },
+    {
+      "id": "msg_1765478838931_eyapfln8c_6",
+      "content": "not at the moment",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:47:18.931Z"
+    },
+    {
+      "id": "msg_1765478840686_9rw9nk1p0_7",
+      "content": "That's totally understandable! Fame can come with its own set of challenges. It's nice to appreciate the quieter moments in life. If you could live to the age of 90 and retain either the mind or body of a 30-year-old for the last 60 years of your life, which would you want?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:47:20.686Z"
+    },
+    {
+      "id": "msg_1765478914362_1ppaf4qfv_8",
+      "content": "i'd go for option B which sounds more compelling to me",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:48:34.362Z"
+    },
+    {
+      "id": "msg_1765478916050_08q007j69_9",
+      "content": "Choosing to retain the body of a 30-year-old sounds intriguing! It likely offers a lot of energy and vitality for those later years. For what in your life do you feel most grateful?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:48:36.050Z"
+    },
+    {
+      "id": "msg_1765479031478_9907mgej6_10",
+      "content": "for the healthy body that i have",
+      "sender": "participant",
+      "timestamp": "2025-12-11T18:50:31.478Z"
+    },
+    {
+      "id": "msg_1765479032991_04nx2gu8a_11",
+      "content": "That's a wonderful thing to be grateful for! A healthy body can really enhance the quality of life and allow you to enjoy many experiences. If a crystal ball could tell you the truth about yourself, your life, the future, or anything else, what would you want to know?",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T18:50:32.991Z"
+    }
+  ]
+}

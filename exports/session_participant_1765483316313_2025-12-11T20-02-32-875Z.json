@@ -1,0 +1,28 @@
+{
+  "sessionId": "participant_1765483316313",
+  "exportedAt": "2025-12-11T20:02:32.875Z",
+  "partnerType": "human",
+  "status": "inactive",
+  "lastActivity": "2025-12-11T20:02:32.875Z",
+  "messageCount": 3,
+  "messages": [
+    {
+      "id": "msg_1765483333758_sz4u9xvn6_0",
+      "content": "hello person",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T20:02:13.758Z"
+    },
+    {
+      "id": "msg_1765483338973_gdpyc4h9h_1",
+      "content": "hello moderator",
+      "sender": "participant",
+      "timestamp": "2025-12-11T20:02:18.973Z"
+    },
+    {
+      "id": "msg_1765483345444_b9oxe877e_2",
+      "content": "i'm lonley",
+      "sender": "moderator",
+      "timestamp": "2025-12-11T20:02:25.444Z"
+    }
+  ]
+}

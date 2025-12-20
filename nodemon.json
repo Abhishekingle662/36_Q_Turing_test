@@ -1,0 +1,20 @@
+{
+  "watch": ["server"],
+  "ext": "ts,js",
+  "ignore": [
+    "node_modules",
+    "exports",
+    "*.json",
+    ".next",
+    "src",
+    "public"
+  ],
+  "delay": 2500,
+  "verbose": true,
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "events": {
+    "restart": "echo '\n🔄 Server restarting due to file changes...\n'"
+  }
+}
