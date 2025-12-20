@@ -40,12 +40,12 @@ export default function ModeratorDashboard() {
     });
 
     // Listen for new participants
-    socketService.onParticipantJoined((data) => {
+    socketService.onParticipantJoined(() => {
       socketService.getActiveSessions(); // Refresh the list
     });
 
     // Listen for participant reconnections
-    socketService.onParticipantRejoined((data) => {
+    socketService.onParticipantRejoined(() => {
       socketService.getActiveSessions(); // Refresh the list
     });
 

@@ -2,17 +2,9 @@
 // Enable client-side functionality (required for onClick handlers and interactivity)
 'use client';
 
-import Image from "next/image"; // Optimized Image component for better performance
-import { useRouter } from "next/navigation";
 
 // Main home page component - serves as the landing page for the research study
 export default function Home() {
-  const router = useRouter();
-
-  const handleStartChat = () => {
-    router.push('/chat');
-  };
-
   return (
     <div className="min-h-screen white-bg px-4 py-8">
       <div className="max-w-5xl mx-auto">

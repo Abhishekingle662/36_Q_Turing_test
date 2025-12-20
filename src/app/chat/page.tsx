@@ -81,7 +81,6 @@ export default function ChatPage() {
 
   // Socket-related state
   const [sessionId, setSessionId] = useState<string>('');
-  const [moderatorConnected, setModeratorConnected] = useState(false);
   const [isSessionEnded, setIsSessionEnded] = useState(false);
   const participantIdRef = useRef<string>('');
   const hasStartedRef = useRef(false);
@@ -194,20 +193,12 @@ export default function ChatPage() {
     });
 
     // Listen for moderator connection status
-    socketService.onModeratorJoined(() => {
-      setModeratorConnected(true);
-    });
-
-    socketService.onModeratorLeft(() => {
-      setModeratorConnected(false);
-    });
-
     // Listen for chat history when rejoining
     socketService.onChatHistory((messages) => {
-      const formattedMessages = messages.map((msg: any) => ({
+      const formattedMessages: Message[] = messages.map((msg: { id: string; content: string; sender: string; timestamp: string | Date }) => ({
         id: msg.id,
         content: msg.content,
-        sender: msg.sender === 'participant' ? 'user' : (msg.sender === 'moderator' ? 'human' : msg.sender),
+        sender: msg.sender === 'participant' ? 'user' : msg.sender === 'moderator' ? 'human' : 'ai',
         timestamp: new Date(msg.timestamp)
       }));
       // Replace messages (keep only welcome message if it exists, then add history)
@@ -636,7 +627,7 @@ export default function ChatPage() {
                 Press Enter to send • Shift+Enter for new line • Be respectful and engage naturally
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {matchStatusMessage || 'Click "Start Conversation" to be paired with a partner.'}
+                {matchStatusMessage || 'Click &quot;Start Conversation&quot; to be paired with a partner.'}
               </p>
             </div>
           </div> {/* End Main Chat Interface */}
@@ -654,7 +645,7 @@ export default function ChatPage() {
               <p className="text-sm text-yellow-700">
                 This conversation is being recorded for research purposes. Please engage naturally and respectfully.
                 You have been paired with another participant for this study.
-                You can exit at any time by clicking the "Exit Study" button above.
+                You can exit at any time by clicking the &quot;Exit Study&quot; button above.
               </p>
             </div>
           </div>

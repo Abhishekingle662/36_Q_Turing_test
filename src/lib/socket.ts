@@ -1,12 +1,47 @@
 import { io, Socket } from 'socket.io-client';
 
+type Sender = 'participant' | 'moderator';
+type PartnerType = 'human' | 'llm';
+
+type SessionJoinedPayload = {
+  sessionId: string;
+  userType: Sender | 'participant' | 'moderator';
+  partnerType?: PartnerType;
+  session?: unknown;
+};
+
+type MessagePayload = {
+  id: string;
+  content: string;
+  sender: Sender;
+  timestamp: string | Date;
+};
+
+type UserTypingPayload = { userType: Sender; isTyping: boolean };
+
+type ActiveSessionPayload = Array<{
+  sessionId: string;
+  participantId: string;
+  hasModeratorAssigned: boolean;
+  messageCount: number;
+  status: 'active' | 'inactive';
+  partnerType: PartnerType;
+}>;
+
+type ParticipantEventPayload = { sessionId: string; participantId: string };
+type JoinErrorPayload = { sessionId: string; error: string };
+type DeleteErrorPayload = { sessionId: string; error: string };
+type SessionDeletedPayload = { sessionId: string };
+type UserDisconnectedPayload = { userType: string };
+
 class SocketService {
   private socket: Socket | null = null;
-  private serverUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3006';
+  private serverUrl = process.env.NEXT_PUBLIC_SOCKET_URL || '';
 
   connect(): Socket {
     if (!this.socket) {
-      this.socket = io(this.serverUrl, {
+      const url = this.serverUrl.trim() || undefined; // undefined defaults to same-origin
+      this.socket = io(url, {
         transports: ['websocket', 'polling']
       });
     }
@@ -44,19 +79,19 @@ class SocketService {
     }
   }
 
-  sendMessage(sessionId: string, content: string, sender: 'participant' | 'moderator') {
+  sendMessage(sessionId: string, content: string, sender: Sender) {
     if (this.socket) {
       this.socket.emit('send-message', { sessionId, content, sender });
     }
   }
 
-  startTyping(sessionId: string, userType: 'participant' | 'moderator') {
+  startTyping(sessionId: string, userType: Sender) {
     if (this.socket) {
       this.socket.emit('typing-start', { sessionId, userType });
     }
   }
 
-  stopTyping(sessionId: string, userType: 'participant' | 'moderator') {
+  stopTyping(sessionId: string, userType: Sender) {
     if (this.socket) {
       this.socket.emit('typing-stop', { sessionId, userType });
     }
@@ -96,37 +131,37 @@ class SocketService {
   }
 
   // Event listeners
-  onSessionJoined(callback: (data: any) => void) {
+  onSessionJoined(callback: (data: SessionJoinedPayload) => void) {
     if (this.socket) {
       this.socket.on('session-joined', callback);
     }
   }
 
-  onNewMessage(callback: (message: any) => void) {
+  onNewMessage(callback: (message: MessagePayload) => void) {
     if (this.socket) {
       this.socket.on('new-message', callback);
     }
   }
 
-  onUserTyping(callback: (data: { userType: string; isTyping: boolean }) => void) {
+  onUserTyping(callback: (data: UserTypingPayload) => void) {
     if (this.socket) {
       this.socket.on('user-typing', callback);
     }
   }
 
-  onChatHistory(callback: (messages: any[]) => void) {
+  onChatHistory(callback: (messages: MessagePayload[]) => void) {
     if (this.socket) {
       this.socket.on('chat-history', callback);
     }
   }
 
-  onActiveSessions(callback: (sessions: any[]) => void) {
+  onActiveSessions(callback: (sessions: ActiveSessionPayload) => void) {
     if (this.socket) {
       this.socket.on('active-sessions', callback);
     }
   }
 
-  onParticipantJoined(callback: (data: any) => void) {
+  onParticipantJoined(callback: (data: ParticipantEventPayload) => void) {
     if (this.socket) {
       this.socket.on('participant-joined', callback);
     }
@@ -144,13 +179,13 @@ class SocketService {
     }
   }
 
-  onJoinError(callback: (data: { sessionId: string; error: string }) => void) {
+  onJoinError(callback: (data: JoinErrorPayload) => void) {
     if (this.socket) {
       this.socket.on('join-error', callback);
     }
   }
 
-  onUserDisconnected(callback: (data: { userType: string }) => void) {
+  onUserDisconnected(callback: (data: UserDisconnectedPayload) => void) {
     if (this.socket) {
       this.socket.on('user-disconnected', callback);
     }
@@ -162,19 +197,19 @@ class SocketService {
     }
   }
 
-  onParticipantRejoined(callback: (data: any) => void) {
+  onParticipantRejoined(callback: (data: ParticipantEventPayload) => void) {
     if (this.socket) {
       this.socket.on('participant-rejoined', callback);
     }
   }
 
-  onSessionDeleted(callback: (data: { sessionId: string }) => void) {
+  onSessionDeleted(callback: (data: SessionDeletedPayload) => void) {
     if (this.socket) {
       this.socket.on('session-deleted', callback);
     }
   }
 
-  onDeleteError(callback: (data: { sessionId: string; error: string }) => void) {
+  onDeleteError(callback: (data: DeleteErrorPayload) => void) {
     if (this.socket) {
       this.socket.on('delete-error', callback);
     }
@@ -187,11 +222,12 @@ class SocketService {
   }
 
   // Clean up event listeners
-  off(event: string, callback?: any) {
+  off(event: string, callback?: (...args: unknown[]) => void) {
     if (this.socket) {
       this.socket.off(event, callback);
     }
   }
 }
 
-export default new SocketService();
+const socketService = new SocketService();
+export default socketService;

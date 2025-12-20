@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { Suspense, useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import socketService from '@/lib/socket';
 
@@ -29,7 +29,7 @@ const TypingIndicator = () => (
   </div>
 );
 
-export default function ModeratorChat() {
+function ModeratorChatContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get('sessionId');
@@ -342,7 +342,7 @@ export default function ModeratorChat() {
                 </div>
                 <p className="text-sm text-purple-700 mb-4">
                   This session is being managed by the AI participant. You are viewing this conversation in real-time.
-                  The LLM is automatically responding to the participant's messages.
+                  The LLM is automatically responding to the participant&apos;s messages.
                 </p>
                 <div className="bg-white rounded-lg p-4 border border-purple-200">
                   <p className="text-sm text-gray-600 flex items-center gap-2">
@@ -425,5 +425,13 @@ export default function ModeratorChat() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ModeratorChat() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading...</div>}>
+      <ModeratorChatContent />
+    </Suspense>
   );
 }

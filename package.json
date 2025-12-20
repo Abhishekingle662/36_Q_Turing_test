@@ -4,11 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --turbopack -p 3005",
-    "dev:socket": "cross-env TS_NODE_PROJECT=server/tsconfig.json nodemon --exec \"node --loader ts-node/esm server/socket-server.ts\"",
-    "dev:full": "concurrently \"npm run dev\" \"npm run dev:socket\"",
+    "dev": "cross-env NODE_ENV=development TS_NODE_PROJECT=server/tsconfig.json node --loader ts-node/esm server/index.ts",
     "build": "next build --turbopack",
-    "start": "next start",
+    "start": "cross-env NODE_ENV=production TS_NODE_PROJECT=server/tsconfig.json node --loader ts-node/esm server/index.ts",
     "lint": "eslint"
   },
   "dependencies": {
@@ -17,12 +15,14 @@
     "google-auth-library": "^10.5.0",
     "googleapis": "^167.0.0",
     "mongoose": "^8.20.0",
-    "next": "15.5.7",
+    "next": "15.5.9",
     "openai": "^4.104.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "cross-env": "^10.1.0",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -31,12 +31,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
     "nodemon": "^3.1.10",
     "tailwindcss": "^4",
-    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }
