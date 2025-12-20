@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_ENV=development TS_NODE_PROJECT=server/tsconfig.json node --loader ts-node/esm server/index.ts",
-    "build": "next build --turbopack",
-    "start": "cross-env NODE_ENV=production TS_NODE_PROJECT=server/tsconfig.json node --loader ts-node/esm server/index.ts",
+    "build": "next build --turbopack && npm run build:server",
+    "build:server": "tsc -p server/tsconfig.json",
+    "start": "cross-env NODE_ENV=production node server/dist/index.js",
     "lint": "eslint"
   },
   "dependencies": {
