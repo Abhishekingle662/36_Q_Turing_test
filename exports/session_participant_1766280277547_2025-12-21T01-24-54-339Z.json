@@ -1,0 +1,22 @@
+{
+  "sessionId": "participant_1766280277547",
+  "exportedAt": "2025-12-21T01:24:54.339Z",
+  "partnerType": "human",
+  "status": "inactive",
+  "lastActivity": "2025-12-21T01:24:54.339Z",
+  "messageCount": 2,
+  "messages": [
+    {
+      "id": "msg_1766280287058_lavran54p_0",
+      "content": "hola",
+      "sender": "moderator",
+      "timestamp": "2025-12-21T01:24:47.059Z"
+    },
+    {
+      "id": "msg_1766280291194_3qkvtg9t4_1",
+      "content": "hola",
+      "sender": "participant",
+      "timestamp": "2025-12-21T01:24:51.194Z"
+    }
+  ]
+}

@@ -1,119 +1,157 @@
-
-// Enable client-side functionality (required for onClick handlers and interactivity)
 'use client';
 
+import Image from 'next/image';
+import {
+  ClipboardDocumentListIcon,
+  InformationCircleIcon,
+  ShieldCheckIcon,
+  ArrowRightEndOnRectangleIcon,
+  CheckBadgeIcon,
+  PencilSquareIcon,
+  UsersIcon,
+} from '@heroicons/react/24/outline';
 
-// Main home page component - serves as the landing page for the research study
 export default function Home() {
   return (
-    <div className="min-h-screen white-bg px-4 py-8">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-slate-50 px-4 py-12 font-sans">
+      <div className="max-w-6xl mx-auto">
 
-        {/* HEADER SECTION */}
-        <header className="text-center mb-12">
-          <div className="flex items-center justify-center mb-6">
-            
-            <h1 className="text-5xl font-bold black-text">Welcome!</h1>
-          </div>
-          <div className="max-w-3xl mx-auto">
-            <p className="text-xl black-text leading-relaxed">
-              Thank you for participating in this study, part of a project exploring how people connect and build relationships with <strong>other people vs. AI</strong>.
-            </p>
+        {/* HEADER WITH IMAGES */}
+        <header className="mb-16">
+          <div className="flex items-center justify-between gap-8 mb-12">
+            {/* LEFT IMAGE */}
+            <div className="hidden lg:block flex-shrink-0">
+              <Image
+                src="/female.png"
+                alt="Female participant"
+                width={180}
+                height={200}
+                className="object-contain"
+              />
+            </div>
+
+            {/* CENTER TEXT */}
+            <div className="text-center flex-grow">
+              <h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 font-display mb-6">
+                Welcome
+              </h1>
+
+              <p className="max-w-3xl mx-auto text-lg md:text-xl text-slate-600 leading-relaxed">
+                Thank you for participating in this study, part of a project exploring how people connect and build relationships with{' '}
+                <strong className="text-slate-900">other people vs. AI</strong>.
+              </p>
+            </div>
+
+            {/* RIGHT IMAGE */}
+            <div className="hidden lg:block flex-shrink-0">
+              <Image
+                src="/male.png"
+                alt="Male participant"
+                width={180}
+                height={200}
+                className="object-contain"
+              />
+            </div>
           </div>
         </header>
 
-        {/* MAIN CONTENT GRID */}
-        <div className="grid lg:grid-cols-2 gap-8 mb-12">
+        {/* MAIN GRID */}
+        <div className="grid lg:grid-cols-2 gap-10 mb-16">
 
-          {/* LEFT COLUMN: What will you do? */}
-          <div className="white-bg rounded-2xl shadow-lg p-8 lilac-border border-2">
-            <div className="flex items-center mb-6">
-              <div className="lilac-bg rounded-full p-3 mr-4">
-                <span className="white-text text-2xl">📋</span>
+          {/* LEFT COLUMN */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+            <div className="flex items-center mb-8">
+              <div className="bg-teal-100 text-teal-700 rounded-xl p-3 mr-4">
+                <ClipboardDocumentListIcon className="w-6 h-6" />
               </div>
-              <h2 className="text-3xl font-bold black-text">What will you do?</h2>
+              <h2 className="text-2xl font-bold text-slate-900 font-display">
+                What will you do?
+              </h2>
             </div>
 
-            <div className="space-y-6">
-              <div className="flex items-start">
-                <div className="lilac-light-bg rounded-full w-8 h-8 flex items-center justify-center mr-4 mt-1 flex-shrink-0">
-                  <span className="lilac-dark-text font-bold text-sm">1</span>
-                </div>
-                <p className="black-text text-lg">You will start with a <strong>brief pre-conversation survey</strong>.</p>
-              </div>
+            <div className="space-y-6 text-lg">
+              <Step number="1">
+                You will start with a <strong>brief pre-conversation survey</strong>.
+              </Step>
 
-              <div className="flex items-start">
-                <div className="lilac-light-bg rounded-full w-8 h-8 flex items-center justify-center mr-4 mt-1 flex-shrink-0">
-                  <span className="lilac-dark-text font-bold text-sm">2</span>
-                </div>
-                <p className="black-text text-lg">Next, you&apos;ll be paired with either a <strong>human partner</strong> or an <strong>AI partner</strong> (an LLM, like ChatGPT) to have a structured conversation. You can chat with your partner as you would normally, answering the questions they ask.</p>
-              </div>
+              <Step number="2">
+                You&apos;ll be paired with either a <strong>human partner</strong> or an{' '}
+                <strong>AI partner</strong> (an LLM, like ChatGPT) to have a structured conversation.
+              </Step>
 
-              <div className="flex items-start">
-                <div className="lilac-light-bg rounded-full w-8 h-8 flex items-center justify-center mr-4 mt-1 flex-shrink-0">
-                  <span className="lilac-dark-text font-bold text-sm">3</span>
-                </div>
-                <p className="black-text text-lg">Then, once the conversation ends, you&apos;ll fill out a <strong>final brief survey</strong> about your experience participating in that conversation.</p>
-              </div>
+              <Step number="3">
+                After the conversation ends, you&apos;ll complete a{' '}
+                <strong>final brief survey</strong>.
+              </Step>
 
-              <div className="lilac-light-bg lilac-border border-2 rounded-lg p-4 mt-6">
-                <div className="flex items-start">
-                  <span className="lilac-dark-text text-xl mr-3">💰</span>
-                  <p className="black-text text-base"><strong>Compensation</strong> will be provided to participants who complete all three parts of this study. Participants found to provide fraudulent data or who do not pass the attention checks will not be compensated.</p>
-                </div>
+              <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 text-base text-slate-700">
+                <strong>Compensation</strong> is provided to participants who complete all parts of the study.
+                Participants who fail attention checks or submit fraudulent data will not be compensated.
               </div>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Important Information */}
-          <div className="white-bg rounded-2xl shadow-lg p-8 lilac-border border-2">
-            <div className="flex items-center mb-6">
-              <div className="lilac-dark-bg rounded-full p-3 mr-4">
-                <span className="white-text text-2xl">ℹ️</span>
+          {/* RIGHT COLUMN */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+            <div className="flex items-center mb-8">
+              <div className="bg-teal-600 text-white rounded-xl p-3 mr-4">
+                <InformationCircleIcon className="w-6 h-6" />
               </div>
-              <h2 className="text-3xl font-bold black-text">Important Information</h2>
+              <h2 className="text-2xl font-bold text-slate-900 font-display">
+                Important Information
+              </h2>
             </div>
 
             <div className="space-y-6">
-              <div className="border-l-4 lilac-border pl-4">
-                <h3 className="font-bold text-lg black-text mb-2">🔒 Confidentiality</h3>
-                <p className="black-text">Your survey responses and chat transcripts will be stored securely and anonymized.</p>
-              </div>
+              <InfoItem
+                icon={<ShieldCheckIcon className="w-5 h-5 text-teal-600" />}
+                title="Confidentiality"
+              >
+                Your survey responses and chat transcripts will be stored securely and anonymized.
+              </InfoItem>
 
-              <div className="border-l-4 lilac-border pl-4">
-                <h3 className="font-bold text-lg black-text mb-2">🚪 Voluntary Participation</h3>
-                <p className="black-text">You can withdraw from this study at any time.</p>
-              </div>
+              <InfoItem
+                icon={<ArrowRightEndOnRectangleIcon className="w-5 h-5 text-teal-600" />}
+                title="Voluntary Participation"
+              >
+                You can withdraw from this study at any time.
+              </InfoItem>
 
-              <div className="border-l-4 lilac-border pl-4">
-                <h3 className="font-bold text-lg black-text mb-2">✅ Ethics Approval</h3>
-                <p className="black-text">This study has been approved by Indiana University Bloomington&apos;s Institutional Review Board.</p>
-              </div>
+              <InfoItem
+                icon={<CheckBadgeIcon className="w-5 h-5 text-teal-600" />}
+                title="Ethics Approval"
+              >
+                This study has been approved by Indiana University Bloomington&apos;s Institutional Review Board.
+              </InfoItem>
             </div>
           </div>
         </div>
 
-        {/* CALL TO ACTION SECTION */}
-        <div className="lilac-bg rounded-2xl shadow-xl p-8 text-center">
-          <h2 className="text-2xl font-bold mb-4 white-text">Ready to Begin?</h2>
-          <p className="text-lg mb-8 white-text">Start your participation in our research study</p>
+        {/* CTA */}
+        <div className="bg-teal-600 rounded-2xl shadow-lg p-10 text-center">
+          <h2 className="text-2xl font-bold text-white mb-3 font-display">
+            Ready to Begin?
+          </h2>
+          <p className="text-teal-100 mb-8 text-lg">
+            Start your participation in our research study
+          </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
-              className="bg-white text-lilac-600 px-8 py-4 rounded-xl font-bold text-lg hover:bg-lilac-50 transition-colors duration-200 shadow-lg"
-              onClick={() => window.location.href = '/chat'}
+              onClick={() => (window.location.href = '/chat')}
+              className="bg-white text-teal-700 px-8 py-4 rounded-xl font-semibold text-lg hover:bg-slate-50 transition shadow-md inline-flex items-center gap-2"
             >
-              <span className="text-2xl mr-3">📝</span>
+              <PencilSquareIcon className="w-5 h-5" />
               Start Conversation
             </button>
 
-            <button
-              className="bg-lilac-800 text-white px-6 py-3 rounded-xl font-semibold hover:bg-lilac-900 transition-colors duration-200"
-              onClick={() => window.location.href = '/moderator'}
+            {/* <button
+              onClick={() => (window.location.href = '/moderator')}
+              className="bg-teal-800 text-white px-6 py-3 rounded-xl font-medium hover:bg-teal-900 transition inline-flex items-center gap-2"
             >
-              <span className="text-xl mr-2">👥</span>
+              <UsersIcon className="w-5 h-5" />
               Moderator Access
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -122,3 +160,43 @@ export default function Home() {
   );
 }
 
+/* ---------- UI HELPERS ---------- */
+
+function Step({
+  number,
+  children,
+}: {
+  number: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-4">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-700 text-sm font-semibold leading-none">
+        {number}
+      </div>
+      <p className="text-slate-700 leading-relaxed">
+        {children}
+      </p>
+    </div>
+  );
+}
+
+function InfoItem({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="mt-1">{icon}</div>
+      <div>
+        <h3 className="font-semibold text-slate-900">{title}</h3>
+        <p className="text-slate-600 leading-relaxed">{children}</p>
+      </div>
+    </div>
+  );
+}

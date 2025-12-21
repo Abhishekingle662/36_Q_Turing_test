@@ -4,6 +4,19 @@ import { Suspense, useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import socketService from '@/lib/socket';
 
+import {
+  ArrowLeftIcon,
+  SignalIcon,
+  CpuChipIcon,
+  UserIcon,
+  PaperAirplaneIcon,
+  StopCircleIcon,
+  ArrowDownTrayIcon,
+  InformationCircleIcon,
+} from '@heroicons/react/24/outline';
+
+/* ---------- TYPES ---------- */
+
 interface Message {
   id: string;
   content: string;
@@ -11,23 +24,22 @@ interface Message {
   timestamp: Date;
 }
 
+/* ---------- TYPING INDICATOR ---------- */
 
-
-// Typing indicator component
 const TypingIndicator = () => (
   <div className="flex justify-start">
-    <div className="max-w-xs lg:max-w-md px-4 py-3 rounded-lg bg-gray-200 text-gray-900">
-      <div className="flex items-center gap-2">
-        <div className="flex space-x-1">
-          <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-          <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-        </div>
-        <span className="text-xs text-gray-500">Participant is typing...</span>
+    <div className="bg-slate-100 rounded-xl px-4 py-2 text-sm text-slate-600 flex items-center gap-2">
+      <div className="flex gap-1">
+        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" />
+        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:150ms]" />
+        <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:300ms]" />
       </div>
+      Participant is typing…
     </div>
   </div>
 );
+
+/* ---------- MAIN CONTENT ---------- */
 
 function ModeratorChatContent() {
   const searchParams = useSearchParams();
@@ -50,13 +62,14 @@ function ModeratorChatContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  /* ---------- SOCKET ---------- */
+
   useEffect(() => {
     if (!sessionId) {
       router.push('/moderator');
       return;
     }
 
-    // Connect to socket
     const socket = socketService.connect();
 
     socket.on('connect', () => {
@@ -64,128 +77,69 @@ function ModeratorChatContent() {
       socketService.joinAsModerator(sessionId);
     });
 
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-    });
+    socket.on('disconnect', () => setIsConnected(false));
 
-    // Listen for session join confirmation
     socketService.onSessionJoined((data) => {
-      console.log('Moderator joined session:', data);
-      if (data.partnerType) {
-        setPartnerType(data.partnerType);
-        // Allow viewing LLM sessions without redirecting
-      }
+      if (data.partnerType) setPartnerType(data.partnerType);
     });
 
-    socketService.onJoinError((data) => {
-      alert(data.error || 'Unable to join this session at the moment.');
-      router.push('/moderator');
+    socketService.onChatHistory(history => {
+      setMessages(
+        history.map(msg => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        }))
+      );
     });
 
-    // Listen for chat history
-    socketService.onChatHistory((history) => {
-      setMessages(history.map(msg => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      })));
+    socketService.onNewMessage(msg => {
+      setMessages(prev => [
+        ...prev,
+        { ...msg, timestamp: new Date(msg.timestamp) },
+      ]);
     });
 
-    // Listen for new messages
-    socketService.onNewMessage((message) => {
-      setMessages(prev => [...prev, {
-        ...message,
-        timestamp: new Date(message.timestamp)
-      }]);
-    });
-
-    // Listen for typing indicators
-    socketService.onUserTyping((data) => {
+    socketService.onUserTyping(data => {
       if (data.userType === 'participant') {
         setIsParticipantTyping(data.isTyping);
       }
     });
 
-    // Listen for participant disconnect
-    socketService.onUserDisconnected((data) => {
-      if (data.userType === 'participant') {
-        setParticipantConnected(false);
-      }
-    });
+    socketService.onParticipantLeft(() => setParticipantConnected(false));
+    socketService.onUserDisconnected(() => setParticipantConnected(false));
+    socketService.onSessionEnded(() => setIsChatEnded(true));
 
-    // Listen for participant left event
-    socketService.onParticipantLeft(() => {
-      setParticipantConnected(false);
-    });
-
-    // Listen for session ended event
-    socketService.onSessionEnded(() => {
-      console.log('Moderator: Received session-ended event');
-      setIsChatEnded(true);
-    });
-
-    return () => {
-      socketService.disconnect();
-    };
+    return () => socketService.disconnect();
   }, [sessionId, router]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(scrollToBottom, [messages]);
+
+  /* ---------- ACTIONS ---------- */
 
   const sendMessage = () => {
     if (!inputMessage.trim() || !sessionId) return;
-
     socketService.sendMessage(sessionId, inputMessage, 'moderator');
     setInputMessage('');
-
-    // Stop typing indicator
     socketService.stopTyping(sessionId, 'moderator');
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
-
     if (!sessionId) return;
 
-    // Start typing indicator
     socketService.startTyping(sessionId, 'moderator');
-
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    // Stop typing after 1 second of inactivity
-    typingTimeoutRef.current = setTimeout(() => {
-      socketService.stopTyping(sessionId, 'moderator');
-    }, 1000);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(
+      () => socketService.stopTyping(sessionId, 'moderator'),
+      1000
+    );
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const goBackToDashboard = () => {
-    router.push('/moderator');
-  };
-
-  const handleEndChat = () => {
-    const confirmMessage = partnerType === 'llm' 
-      ? 'Are you sure you want to end this AI session?\n\nAll chat data will be automatically exported to Excel and Google Sheets before ending.'
-      : 'Are you sure you want to end this chat session? This will close the chat for the participant as well.';
-    
-    if (confirm(confirmMessage)) {
-      console.log('Moderator: Ending chat for session:', sessionId);
+  const endChat = () => {
+    if (confirm('End this chat session?')) {
       socketService.endSession(sessionId!);
     }
   };
@@ -193,233 +147,195 @@ function ModeratorChatContent() {
   const exportChat = () => {
     if (!messages.length) return;
 
-    // Generate CSV content
-    const headers = ['Timestamp', 'Sender', 'Message'];
-    const csvContent = [
-      headers.join(','),
-      ...messages.map(msg => {
-        const timestamp = msg.timestamp.toLocaleString();
-        const sender = msg.sender === 'moderator' ? 'Moderator' : 'Participant';
-        // Escape quotes in message content
-        const content = `"${msg.content.replace(/"/g, '""')}"`;
-        return `${timestamp},${sender},${content}`;
-      })
+    const csv = [
+      ['Timestamp', 'Sender', 'Message'].join(','),
+      ...messages.map(m =>
+        `${m.timestamp.toLocaleString()},${m.sender},"${m.content.replace(/"/g, '""')}"`
+      ),
     ].join('\n');
 
-    // Create download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `chat_export_${sessionId}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = `chat_${sessionId}.csv`;
     link.click();
-    document.body.removeChild(link);
   };
 
-  if (!sessionId) {
-    return <div>Loading...</div>;
-  }
+  if (!sessionId) return null;
+
+  /* ---------- UI ---------- */
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={goBackToDashboard}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                ←
-              </button>
-              
-                <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${participantConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-gray-600">
+    <div className="h-screen bg-slate-50 flex flex-col font-sans overflow-hidden">
+
+      {/* HEADER */}
+      <header className="bg-white border-b border-slate-200 shadow-sm flex-none">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/moderator')}
+              className="p-2 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors"
+            >
+              <ArrowLeftIcon className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <div className={`w-2.5 h-2.5 rounded-full ${participantConnected ? 'bg-teal-500' : 'bg-red-500'}`}></div>
+                <span className="font-medium text-slate-700">
                   Participant {participantConnected ? 'Online' : 'Offline'}
                 </span>
-                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${partnerType === 'llm' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                    {partnerType === 'llm' ? 'AI Participant' : 'Human Participant'}
-                  </span>
               </div>
+
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${partnerType === 'llm' ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'}`}>
+                {partnerType === 'llm' ? (
+                  <CpuChipIcon className="w-3.5 h-3.5" />
+                ) : (
+                  <UserIcon className="w-3.5 h-3.5" />
+                )}
+                {partnerType === 'llm' ? 'AI Participant' : 'Human Participant'}
+              </span>
             </div>
-            {!isChatEnded && (
-              <div className="flex gap-2">
-                {partnerType === 'llm' && (
-                  <button
-                    onClick={handleEndChat}
-                    className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                  >
-                    🤖 End AI Session
-                  </button>
-                )}
-                {partnerType === 'human' && (
-                  <button
-                    onClick={handleEndChat}
-                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    End Chat
-                  </button>
-                )}
-              </div>
-            )}
           </div>
+
+          {!isChatEnded && (
+            <button
+              onClick={endChat}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <StopCircleIcon className="w-4 h-4" />
+              End Chat
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Chat Interface */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-lg shadow-lg h-[600px] flex flex-col">
+      {/* CHAT */}
+      <main className="max-w-6xl mx-auto w-full px-6 py-4 flex-1 flex flex-col min-h-0">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
 
-          {/* Chat Header */}
-          <div className="p-4 border-b bg-gray-50 rounded-t-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-700">Moderating chat with participant:</span>
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${participantConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span className="font-semibold text-gray-900">
-                    Session #{sessionId.slice(-8)}
-                  </span>
-                </div>
+          {/* MESSAGES */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+            {messages.length === 0 && (
+              <div className="text-center text-slate-400 py-16 text-sm">
+                No messages yet. Start the conversation.
               </div>
-            </div>
-          </div>
-
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{paddingBottom: '5.5rem'}}>
-            {messages.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-4xl mb-4">💬</div>
-                <p>No messages yet. Start the conversation!</p>
-              </div>
-            ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.sender === 'moderator' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${message.sender === 'moderator'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-900'
-                    }`}>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-base whitespace-pre-wrap">{message.content}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className={`text-xs ${message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
-                            }`}>
-                            {message.sender === 'moderator' ? 'You (Moderator)' : 'Participant'}
-                          </span>
-                          <span className={`text-xs ${message.sender === 'moderator' ? 'text-blue-100' : 'text-gray-500'
-                            }`}>
-                            {formatTime(message.timestamp)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
             )}
 
-            {/* Typing indicator */}
-            {isParticipantTyping && <TypingIndicator />}
+            {messages.map(msg => (
+              <div
+                key={msg.id}
+                className={`flex ${
+                  msg.sender === 'moderator'
+                    ? 'justify-end'
+                    : 'justify-start'
+                }`}
+              >
+                <div
+                  className={`max-w-[85%] px-5 py-3.5 rounded-2xl shadow-sm text-base leading-relaxed ${
+                    msg.sender === 'moderator'
+                      ? 'bg-teal-600 text-white rounded-br-none'
+                      : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                  }`}
+                >
+                  {msg.content}
+                  <div className={`mt-2 text-xs flex justify-end ${msg.sender === 'moderator' ? 'text-teal-100/80' : 'text-slate-400'}`}>
+                    {formatTime(msg.timestamp)}
+                  </div>
+                </div>
+              </div>
+            ))}
 
+            {isParticipantTyping && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div className="p-8 border-t bg-gray-50 rounded-b-2xl">
+          {/* INPUT / INFO */}
+          <div className="border-t border-slate-200 bg-white p-4 flex-none">
             {partnerType === 'llm' ? (
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-2xl">🤖</span>
-                  <h3 className="font-semibold text-purple-800">AI Session - View Only</h3>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-600 flex items-center gap-3">
+                <div className="bg-white p-1.5 rounded-lg shadow-sm text-teal-600">
+                  <CpuChipIcon className="w-5 h-5" />
                 </div>
-                <p className="text-sm text-purple-700 mb-4">
-                  This session is being managed by the AI participant. You are viewing this conversation in real-time.
-                  The LLM is automatically responding to the participant&apos;s messages.
-                </p>
-                <div className="bg-white rounded-lg p-4 border border-purple-200">
-                  <p className="text-sm text-gray-600 flex items-center gap-2">
-                    <span>📊</span>
-                    <span>All messages are being automatically exported to Excel and Google Sheets</span>
-                  </p>
-                </div>
+                AI session is fully automated. You are viewing in real time.
               </div>
             ) : (
               <>
-                <div className="flex gap-5">
+                <div className="flex gap-3">
                   <textarea
                     ref={inputRef}
                     value={inputMessage}
                     onChange={handleInputChange}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Type your response as the moderator..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    placeholder="Type your response…"
                     rows={1}
-                    className="flex-1 px-8 py-5 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-black text-lg resize-none"
-                    disabled={!isConnected || !participantConnected}
-                    style={{minHeight: '60px', maxHeight: '150px', overflow: 'auto'}}
+                    disabled={!participantConnected}
+                    className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all placeholder-slate-400 text-slate-900"
                   />
                   <button
                     onClick={sendMessage}
-                    disabled={!inputMessage.trim() || !isConnected || !participantConnected}
-                    className="px-10 py-5 bg-blue-600 text-white rounded-2xl text-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    disabled={!inputMessage.trim()}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors"
                   >
+                    <PaperAirplaneIcon className="w-5 h-5" />
                     Send
                   </button>
                 </div>
-                <p className="text-sm text-gray-500 mt-3">
-                  You are moderating as a human participant. Respond naturally and authentically.
+
+                <p className="mt-2 text-xs text-slate-400 px-1">
+                  Respond naturally as a human participant. Press Enter to send.
                 </p>
               </>
             )}
           </div>
         </div>
 
-        {/* Moderator Instructions */}
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            <span className="text-blue-600 text-lg">ℹ️</span>
-            <div>
-              <h3 className="font-semibold text-blue-800 mb-1">Moderator Guidelines</h3>
-              <p className="text-sm text-blue-700">
-                Act as a natural human participant. Engage authentically and avoid revealing your moderator role.
-                The participant believes they are chatting with another study participant.
-              </p>
-            </div>
+        {/* GUIDELINES */}
+        <div className="mt-4 bg-slate-100 border border-slate-200 rounded-xl p-4 flex gap-3 flex-none">
+          <div className="bg-white p-1.5 rounded-lg shadow-sm text-slate-500 h-fit">
+            <InformationCircleIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-900 mb-1 text-sm">Moderator Guidelines</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Act naturally. Do not reveal your moderator role. Participants
+              believe they are chatting with another study participant.
+            </p>
           </div>
         </div>
-      </div>
+      </main>
 
-      {/* Export Modal */}
+      {/* END MODAL */}
       {isChatEnded && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
-            <div className="text-center">
-              <div className="text-5xl mb-4">📝</div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Session Ended</h2>
-              <p className="text-gray-600 mb-6">
-                The chat session has been ended. You can now export the chat history or return to the dashboard.
-              </p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={exportChat}
-                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <span>⬇️</span> Export Chat (CSV)
-                </button>
-                <button
-                  onClick={goBackToDashboard}
-                  className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Return to Dashboard
-                </button>
-              </div>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center border border-slate-200 shadow-2xl">
+            <h2 className="text-2xl font-bold text-slate-900 mb-3 font-display">
+              Session Ended
+            </h2>
+            <p className="text-slate-600 mb-8 leading-relaxed">
+              You can export the chat or return to the dashboard.
+            </p>
+
+            <div className="space-y-3">
+              <button
+                onClick={exportChat}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 transition-colors shadow-md"
+              >
+                <ArrowDownTrayIcon className="w-5 h-5" />
+                Export Chat (CSV)
+              </button>
+
+              <button
+                onClick={() => router.push('/moderator')}
+                className="w-full px-6 py-3.5 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Return to Dashboard
+              </button>
             </div>
           </div>
         </div>
@@ -428,9 +344,11 @@ function ModeratorChatContent() {
   );
 }
 
+/* ---------- SUSPENSE WRAPPER ---------- */
+
 export default function ModeratorChat() {
   return (
-    <Suspense fallback={<div className="p-4">Loading...</div>}>
+    <Suspense fallback={<div className="p-6">Loading…</div>}>
       <ModeratorChatContent />
     </Suspense>
   );

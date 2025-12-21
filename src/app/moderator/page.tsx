@@ -4,6 +4,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import socketService from '@/lib/socket';
 
+import {
+  SignalIcon,
+  ArrowPathIcon,
+  EyeIcon,
+  TrashIcon,
+  StopCircleIcon,
+  UserGroupIcon,
+  CpuChipIcon,
+} from '@heroicons/react/24/outline';
+
 interface ActiveSession {
   sessionId: string;
   participantId: string;
@@ -18,297 +28,339 @@ export default function ModeratorDashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
+  
+  // Modal State
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    type: 'delete' | 'end-ai' | null;
+    sessionId: string | null;
+    participantId?: string;
+  }>({
+    isOpen: false,
+    type: null,
+    sessionId: null,
+  });
+
   const router = useRouter();
 
+  /* ---------- SOCKET SETUP ---------- */
+
   useEffect(() => {
-    // Connect to socket server
     const socket = socketService.connect();
-    
+
     socket.on('connect', () => {
       setIsConnected(true);
       socketService.getActiveSessions();
     });
 
-    socket.on('disconnect', () => {
-      setIsConnected(false);
-    });
+    socket.on('disconnect', () => setIsConnected(false));
 
-    // Listen for active sessions
-    socketService.onActiveSessions((sessions) => {
-      console.log('Received active sessions:', sessions);
-      setActiveSessions(sessions);
-    });
+    socketService.onActiveSessions(setActiveSessions);
+    socketService.onParticipantJoined(socketService.getActiveSessions);
+    socketService.onParticipantRejoined(socketService.getActiveSessions);
+    socketService.onParticipantLeft(socketService.getActiveSessions);
 
-    // Listen for new participants
-    socketService.onParticipantJoined(() => {
-      socketService.getActiveSessions(); // Refresh the list
-    });
-
-    // Listen for participant reconnections
-    socketService.onParticipantRejoined(() => {
-      socketService.getActiveSessions(); // Refresh the list
-    });
-
-    // Listen for participant disconnections
-    socketService.onParticipantLeft(() => {
-      socketService.getActiveSessions(); // Refresh the list
-    });
-
-    // Listen for user disconnections
-    socketService.onUserDisconnected((data) => {
-      if (data.userType === 'participant') {
-        socketService.getActiveSessions(); // Refresh the list
-      }
-    });
-
-    // Listen for session deletion success
-    socketService.onSessionDeleted((data) => {
-      console.log('Session deleted successfully:', data);
+    socketService.onSessionDeleted(() => {
       setDeletingSession(null);
-      socketService.getActiveSessions(); // Refresh the list
+      socketService.getActiveSessions();
     });
 
-    // Listen for session deletion errors
     socketService.onDeleteError((data) => {
-      console.log('Session deletion error:', data);
       setDeletingSession(null);
       alert(`Error deleting session: ${data.error}`);
     });
 
-    // Cleanup on unmount
-    return () => {
-      socketService.disconnect();
-    };
+    return () => socketService.disconnect();
   }, []);
+
+  /* ---------- ACTIONS ---------- */
+
+  const refreshSessions = () => {
+    setIsRefreshing(true);
+    socketService.getActiveSessions();
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   const handleJoinSession = (sessionId: string) => {
     router.push(`/moderator/chat?sessionId=${sessionId}`);
   };
 
-  const refreshSessions = () => {
-    setIsRefreshing(true);
-    // Just get updated active sessions without clearing
-    socketService.getActiveSessions();
-    
-    // Reset refreshing state after a delay
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 1000);
-  };
-
   const handleDeleteSession = (sessionId: string) => {
-    console.log('Delete session clicked for:', sessionId);
-    if (confirm('Are you sure you want to delete this inactive session? This action cannot be undone.')) {
-      console.log('Deletion confirmed, sending delete request for:', sessionId);
-      setDeletingSession(sessionId);
-      socketService.deleteSession(sessionId);
-    } else {
-      console.log('Deletion cancelled for:', sessionId);
-    }
+    setModalConfig({
+      isOpen: true,
+      type: 'delete',
+      sessionId,
+    });
   };
 
   const handleEndAISession = (sessionId: string, participantId: string) => {
-    if (confirm(`Are you sure you want to end this AI session?\n\nSession: ${sessionId.slice(-8)}\nParticipant: ${participantId.slice(-8)}\n\nAll chat data will be automatically exported before ending.`)) {
-      console.log('Ending AI session:', sessionId);
-      socketService.endSession(sessionId);
-    }
+    setModalConfig({
+      isOpen: true,
+      type: 'end-ai',
+      sessionId,
+      participantId,
+    });
   };
 
+  const confirmAction = () => {
+    const { type, sessionId } = modalConfig;
+    if (!sessionId) return;
+
+    if (type === 'delete') {
+      setDeletingSession(sessionId);
+      socketService.deleteSession(sessionId);
+    } else if (type === 'end-ai') {
+      socketService.endSession(sessionId);
+    }
+    
+    closeModal();
+  };
+
+  const closeModal = () => {
+    setModalConfig({ isOpen: false, type: null, sessionId: null });
+  };
+
+  /* ---------- UI ---------- */
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Moderator Dashboard</h1>
-                <p className="text-sm text-gray-600">Research Study Chat Moderation</p>
-              </div>
+    <div className="min-h-screen bg-slate-50">
+
+      {/* HEADER */}
+      <header className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">
+              Moderator Dashboard
+            </h1>
+            <p className="text-sm text-slate-500">
+              Research Study Chat Moderation
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm">
+              <SignalIcon
+                className={`w-4 h-4 ${
+                  isConnected ? 'text-teal-600' : 'text-slate-400'
+                }`}
+              />
+              <span className="text-slate-600">
+                {isConnected ? 'Connected' : 'Disconnected'}
+              </span>
             </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-gray-600">
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-              <button 
-                onClick={refreshSessions}
-                disabled={isRefreshing}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRefreshing ? 'Refreshing...' : 'Refresh'}
-              </button>
-            </div>
+
+            <button
+              onClick={refreshSessions}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50"
+            >
+              <ArrowPathIcon className="w-4 h-4" />
+              {isRefreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Active Chat Sessions</h2>
-          <p className="text-gray-600">
-            Monitor and join active participant sessions. Sessions marked as AI are handled automatically by the LLM participant.
+      {/* MAIN */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* INTRO */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">
+            Active Chat Sessions
+          </h2>
+          <p className="text-slate-600">
+            Monitor and join participant sessions in real time.
           </p>
         </div>
 
-        {/* Sessions Grid */}
+        {/* SESSIONS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {activeSessions.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <div className="text-gray-400 text-6xl mb-4">💬</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Sessions</h3>
-              <p className="text-gray-600">
-                Waiting for participants to join. Sessions will appear here automatically.
-              </p>
+            <div className="col-span-full text-center py-16 text-slate-500">
+              <UserGroupIcon className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+              No active sessions yet
             </div>
           ) : (
-            activeSessions.map((session) => {
-              const isLLMSession = session.partnerType === 'llm';
+            activeSessions.map(session => {
+              const isAI = session.partnerType === 'llm';
+
               return (
-              <div
-                key={session.sessionId}
-                className="bg-white rounded-lg shadow-md border hover:shadow-lg transition-shadow"
-              >
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
+                <div
+                  key={session.sessionId}
+                  className="bg-white rounded-2xl border shadow-sm p-6 flex flex-col"
+                >
+                  <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                      <h3 className="font-semibold text-slate-900">
                         Session #{session.sessionId.slice(-8)}
                       </h3>
-                      <p className="text-sm text-gray-600">
-                        Participant: {session.participantId.slice(-8)}
+                      <p className="text-sm text-slate-500">
+                        Participant {session.participantId.slice(-8)}
                       </p>
                     </div>
-                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      session.hasModeratorAssigned 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
+
+                    <span
+                      className={`text-xs font-medium px-2 py-1 rounded-full ${
+                        session.hasModeratorAssigned
+                          ? 'bg-slate-100 text-slate-600'
+                          : 'bg-teal-100 text-teal-700'
+                      }`}
+                    >
                       {session.hasModeratorAssigned ? 'Moderated' : 'Available'}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-sm text-gray-500">Partner Type:</span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${isLLMSession ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                      {isLLMSession ? 'AI Participant' : 'Human Participant'}
                     </span>
                   </div>
 
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Messages:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {session.messageCount}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Status:</span>
-                      <span className={`text-sm font-medium ${
-                        session.status === 'active' 
-                          ? 'text-green-600' 
-                          : 'text-red-600'
-                      }`}>
+                  <div className="flex items-center gap-2 mb-4 text-sm">
+                    {isAI ? (
+                      <CpuChipIcon className="w-4 h-4 text-teal-600" />
+                    ) : (
+                      <UserGroupIcon className="w-4 h-4 text-teal-600" />
+                    )}
+                    <span className="text-slate-600">
+                      {isAI ? 'AI Participant' : 'Human Participant'}
+                    </span>
+                  </div>
+
+                  <div className="text-sm text-slate-600 space-y-1 mb-6">
+                    <div>Messages: <strong>{session.messageCount}</strong></div>
+                    <div>
+                      Status:{' '}
+                      <span
+                        className={
+                          session.status === 'active'
+                            ? 'text-teal-600'
+                            : 'text-red-500'
+                        }
+                      >
                         {session.status === 'active' ? 'Online' : 'Disconnected'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    {session.status === 'inactive' ? (
+                  <div className="space-y-2 mt-auto">
+                    {session.status === 'active' && (
                       <button
                         onClick={() => handleJoinSession(session.sessionId)}
-                        className="w-full py-2 px-4 rounded-lg font-medium bg-red-100 text-red-500 cursor-not-allowed"
-                        disabled={true}
+                        disabled={session.hasModeratorAssigned && !isAI}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:bg-slate-200 disabled:text-slate-400"
                       >
-                        Participant Disconnected
-                      </button>
-                    ) : isLLMSession ? (
-                      <>
-                        <button
-                          onClick={() => handleJoinSession(session.sessionId)}
-                          className="w-full py-2 px-4 rounded-lg font-medium transition-colors bg-purple-100 text-purple-700 hover:bg-purple-200"
-                        >
-                          👁️ View AI Session
-                        </button>
-                        <button
-                          onClick={() => handleEndAISession(session.sessionId, session.participantId)}
-                          className="w-full py-2 px-4 rounded-lg font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700"
-                        >
-                          🤖 End AI Session
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => handleJoinSession(session.sessionId)}
-                        className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-                          session.hasModeratorAssigned
-                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                        disabled={session.hasModeratorAssigned}
-                      >
-                        {session.hasModeratorAssigned
+                        <EyeIcon className="w-4 h-4" />
+                        {session.hasModeratorAssigned && !isAI
                           ? 'Already Moderated'
-                          : 'Join Chat'}
+                          : 'Join Session'}
                       </button>
                     )}
-                    
-                    {/* Always show delete button for testing */}
+
+                    {isAI && session.status === 'active' && (
+                      <button
+                        onClick={() =>
+                          handleEndAISession(
+                            session.sessionId,
+                            session.participantId
+                          )
+                        }
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900"
+                      >
+                        <StopCircleIcon className="w-4 h-4" />
+                        End AI Session
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleDeleteSession(session.sessionId)}
                       disabled={deletingSession === session.sessionId}
-                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                        session.status === 'inactive' 
-                          ? 'bg-red-600 text-white hover:bg-red-700'
-                          : 'bg-orange-600 text-white hover:bg-orange-700'
-                      }`}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                     >
-                      {deletingSession === session.sessionId ? 'Deleting...' : `Delete Session (${session.status})`}
+                      <TrashIcon className="w-4 h-4" />
+                      {deletingSession === session.sessionId
+                        ? 'Deleting…'
+                        : 'Delete Session'}
                     </button>
                   </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })
           )}
         </div>
 
-        {/* Statistics */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="text-2xl font-bold text-blue-600 mb-2">
-              {activeSessions.length}
+      {/* CONFIRMATION MODAL */}
+      {modalConfig.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 transform transition-all">
+            <div className="mb-6">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+                modalConfig.type === 'delete' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {modalConfig.type === 'delete' ? (
+                  <TrashIcon className="w-6 h-6" />
+                ) : (
+                  <StopCircleIcon className="w-6 h-6" />
+                )}
+              </div>
+              
+              <h3 className="text-xl font-bold text-slate-900 mb-2">
+                {modalConfig.type === 'delete' ? 'Delete Session?' : 'End AI Session?'}
+              </h3>
+              
+              <p className="text-slate-600">
+                {modalConfig.type === 'delete' 
+                  ? 'Are you sure you want to delete this session? This action cannot be undone and will remove all session data.'
+                  : `Are you sure you want to end the AI session for participant ${modalConfig.participantId?.slice(-8)}? This will stop the AI interaction.`
+                }
+              </p>
             </div>
-            <div className="text-sm text-gray-600">Total Active Sessions</div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="text-2xl font-bold text-green-600 mb-2">
-              {activeSessions.filter(s => s.hasModeratorAssigned).length}
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeModal}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAction}
+                className={`flex-1 px-4 py-2.5 text-white rounded-xl font-medium transition-colors shadow-sm ${
+                  modalConfig.type === 'delete' 
+                    ? 'bg-red-600 hover:bg-red-700' 
+                    : 'bg-slate-800 hover:bg-slate-900'
+                }`}
+              >
+                {modalConfig.type === 'delete' ? 'Delete' : 'End Session'}
+              </button>
             </div>
-            <div className="text-sm text-gray-600">Sessions Being Moderated</div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="text-2xl font-bold text-yellow-600 mb-2">
-              {activeSessions.filter(s => !s.hasModeratorAssigned).length}
-            </div>
-            <div className="text-sm text-gray-600">Sessions Awaiting Moderator</div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="text-2xl font-bold text-purple-600 mb-2">
-              {activeSessions.filter(s => s.partnerType === 'llm').length}
-            </div>
-            <div className="text-sm text-gray-600">AI-Managed Sessions</div>
           </div>
         </div>
-      </div>
+      )}
+
+        {/* STATS */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Stat label="Active Sessions" value={activeSessions.length} />
+          <Stat
+            label="Moderated"
+            value={activeSessions.filter(s => s.hasModeratorAssigned).length}
+          />
+          <Stat
+            label="Awaiting Moderator"
+            value={activeSessions.filter(s => !s.hasModeratorAssigned).length}
+          />
+          <Stat
+            label="AI Sessions"
+            value={activeSessions.filter(s => s.partnerType === 'llm').length}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ---------- SMALL UI HELPERS ---------- */
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-white rounded-2xl border p-6 text-center">
+      <div className="text-3xl font-bold text-teal-600 mb-1">{value}</div>
+      <div className="text-sm text-slate-600">{label}</div>
     </div>
   );
 }
