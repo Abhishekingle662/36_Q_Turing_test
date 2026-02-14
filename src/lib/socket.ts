@@ -3,10 +3,18 @@ import { io, Socket } from 'socket.io-client';
 type Sender = 'participant' | 'moderator';
 type PartnerType = 'human' | 'llm';
 
+type ExperimentCondition =
+  | 'truthful-human'
+  | 'truthful-ai'
+  | 'deceptive-ai-as-human'
+  | 'deceptive-human-as-ai';
+
 type SessionJoinedPayload = {
   sessionId: string;
   userType: Sender | 'participant' | 'moderator';
   partnerType?: PartnerType;
+  disclosedType?: PartnerType;
+  condition?: ExperimentCondition;
   session?: unknown;
 };
 
@@ -26,6 +34,8 @@ type ActiveSessionPayload = Array<{
   messageCount: number;
   status: 'active' | 'inactive';
   partnerType: PartnerType;
+  disclosedType: PartnerType;
+  condition: ExperimentCondition;
 }>;
 
 type ParticipantEventPayload = { sessionId: string; participantId: string };

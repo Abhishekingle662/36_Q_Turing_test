@@ -38,7 +38,7 @@ export default function Home() {
 
               <p className="max-w-3xl mx-auto text-lg md:text-xl text-slate-600 leading-relaxed">
                 Thank you for participating in this study, part of a project exploring how people connect and build relationships with{' '}
-                <strong className="text-slate-900">other people vs. AI</strong>.
+                <strong className="text-slate-900">other people compared to AI</strong>.
               </p>
             </div>
 

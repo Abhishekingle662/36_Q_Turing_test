@@ -147,18 +147,31 @@ function ModeratorChatContent() {
   const exportChat = () => {
     if (!messages.length) return;
 
+    const escapeCsvField = (field: string) => {
+      const str = String(field);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const csv = [
-      ['Timestamp', 'Sender', 'Message'].join(','),
+      'Timestamp,Sender,Message',
       ...messages.map(m =>
-        `${m.timestamp.toLocaleString()},${m.sender},"${m.content.replace(/"/g, '""')}"`
+        [
+          escapeCsvField(m.timestamp.toISOString()),
+          escapeCsvField(m.sender),
+          escapeCsvField(m.content),
+        ].join(',')
       ),
     ].join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `chat_${sessionId}.csv`;
     link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   if (!sessionId) return null;
@@ -198,15 +211,26 @@ function ModeratorChatContent() {
             </div>
           </div>
 
-          {!isChatEnded && (
-            <button
-              onClick={endChat}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors"
-            >
-              <StopCircleIcon className="w-4 h-4" />
-              End Chat
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {messages.length > 0 && (
+              <button
+                onClick={exportChat}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 border border-teal-200 text-sm font-medium rounded-lg hover:bg-teal-100 transition-colors"
+              >
+                <ArrowDownTrayIcon className="w-4 h-4" />
+                Export CSV
+              </button>
+            )}
+            {!isChatEnded && (
+              <button
+                onClick={endChat}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors"
+              >
+                <StopCircleIcon className="w-4 h-4" />
+                End Chat
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
