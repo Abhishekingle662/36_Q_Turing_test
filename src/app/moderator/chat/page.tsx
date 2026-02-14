@@ -93,10 +93,13 @@ function ModeratorChatContent() {
     });
 
     socketService.onNewMessage(msg => {
-      setMessages(prev => [
-        ...prev,
-        { ...msg, timestamp: new Date(msg.timestamp) },
-      ]);
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [
+          ...prev,
+          { ...msg, timestamp: new Date(msg.timestamp) },
+        ];
+      });
     });
 
     socketService.onUserTyping(data => {
