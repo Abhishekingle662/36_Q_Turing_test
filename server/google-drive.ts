@@ -9,44 +9,59 @@ import { OAuth2Client, Credentials } from 'google-auth-library';
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || '';
+
+// GOOGLE_REDIRECT_URI can be set explicitly, or auto-detected from the
+// request origin at runtime (see getAuthUrl / handleAuthCallback).
+const EXPLICIT_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || '';
+
+const CALLBACK_PATH = '/auth/google/callback';
 
 const SCOPES = [
-  'https://www.googleapis.com/auth/drive.file',   // create/edit files the app creates
-  'https://www.googleapis.com/auth/documents',     // Google Docs
-  'https://www.googleapis.com/auth/spreadsheets',  // Google Sheets
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/documents',
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/userinfo.email',
 ];
 
 export const isGoogleDriveConfigured = () =>
-  Boolean(CLIENT_ID && CLIENT_SECRET && REDIRECT_URI);
+  Boolean(CLIENT_ID && CLIENT_SECRET);
 
 // ── Per-moderator token store ────────────────────────────────────────
-// Maps moderator socket ID → OAuth tokens.
-// In production this should be persisted (DB / encrypted file).
 const tokenStore = new Map<string, Credentials>();
-
-// Maps moderator socket ID → the Google account email for display
 const emailStore = new Map<string, string>();
-
-// Pending OAuth states → socket ID (for linking callback to moderator)
-const pendingOAuth = new Map<string, string>();
+const pendingOAuth = new Map<string, { socketId: string; redirectUri: string }>();
 
 // ── OAuth helpers ────────────────────────────────────────────────────
 
-const createOAuth2Client = (): OAuth2Client =>
-  new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+const createOAuth2Client = (redirectUri: string): OAuth2Client =>
+  new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, redirectUri);
+
+/**
+ * Build the redirect URI from the request origin or env var.
+ * `origin` is passed from the client (e.g. "https://myapp.com").
+ */
+const resolveRedirectUri = (origin?: string): string => {
+  if (EXPLICIT_REDIRECT_URI) return EXPLICIT_REDIRECT_URI;
+  if (origin) return `${origin.replace(/\/$/, '')}${CALLBACK_PATH}`;
+  return `http://localhost:3000${CALLBACK_PATH}`;
+};
 
 /** Generate the consent URL for a moderator. */
-export const getAuthUrl = (socketId: string): string => {
-  const client = createOAuth2Client();
+export const getAuthUrl = (socketId: string, origin?: string): string => {
+  const redirectUri = resolveRedirectUri(origin);
+  const client = createOAuth2Client(redirectUri);
   const state = `${socketId}_${Date.now()}`;
-  pendingOAuth.set(state, socketId);
-  return client.generateAuthUrl({
+  pendingOAuth.set(state, { socketId, redirectUri });
+
+  const url = client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     scope: SCOPES,
     state,
   });
+
+  console.log(`[GDRIVE] Auth URL generated. redirect_uri=${redirectUri}`);
+  return url;
 };
 
 /** Exchange the callback code for tokens. Returns the socket ID. */
@@ -54,11 +69,12 @@ export const handleAuthCallback = async (
   code: string,
   state: string
 ): Promise<{ socketId: string; email: string }> => {
-  const socketId = pendingOAuth.get(state);
-  if (!socketId) throw new Error('Invalid OAuth state');
+  const pending = pendingOAuth.get(state);
+  if (!pending) throw new Error('Invalid OAuth state');
   pendingOAuth.delete(state);
 
-  const client = createOAuth2Client();
+  const { socketId, redirectUri } = pending;
+  const client = createOAuth2Client(redirectUri);
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
   tokenStore.set(socketId, tokens);
@@ -91,9 +107,9 @@ export const clearModeratorTokens = (socketId: string) => {
 const getClientForModerator = (socketId: string): OAuth2Client | null => {
   const tokens = tokenStore.get(socketId);
   if (!tokens) return null;
-  const client = createOAuth2Client();
+  // redirect_uri doesn't matter for API calls, only for token exchange
+  const client = createOAuth2Client(resolveRedirectUri());
   client.setCredentials(tokens);
-  // Update stored tokens when they refresh
   client.on('tokens', (newTokens) => {
     const existing = tokenStore.get(socketId);
     tokenStore.set(socketId, { ...existing, ...newTokens });

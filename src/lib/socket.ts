@@ -251,7 +251,9 @@ class SocketService {
 
   // ── Google Drive auth ──────────────────────────────────────────
   requestGoogleAuth() {
-    this.socket?.emit('google-auth-request');
+    this.socket?.emit('google-auth-request', {
+      origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+    });
   }
 
   checkGoogleAuth() {
