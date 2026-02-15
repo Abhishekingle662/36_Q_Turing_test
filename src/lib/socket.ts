@@ -260,8 +260,18 @@ class SocketService {
     this.socket?.emit('google-auth-check');
   }
 
+  /** Re-link this socket to an existing Google auth by email. */
+  linkGoogleAuth(email: string) {
+    this.socket?.emit('google-auth-link', { email });
+  }
+
   disconnectGoogle() {
     this.socket?.emit('google-disconnect');
+  }
+
+  /** Request batch export of sessions to Google Drive. */
+  exportSessionsToGoogleDrive(sessionIds: string[]) {
+    this.socket?.emit('google-export-sessions', { sessionIds });
   }
 
   onGoogleAuthUrl(callback: (data: { url: string }) => void) {
@@ -270,6 +280,10 @@ class SocketService {
 
   onGoogleAuthStatus(callback: (data: { connected: boolean; email?: string; error?: string }) => void) {
     this.socket?.on('google-auth-status', callback);
+  }
+
+  onGoogleExportResult(callback: (data: { success: boolean; exported?: number; total?: number; error?: string }) => void) {
+    this.socket?.on('google-export-result', callback);
   }
 
   // ── Chat history (all sessions) ───────────────────────────────

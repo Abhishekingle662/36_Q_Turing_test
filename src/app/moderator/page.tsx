@@ -87,6 +87,8 @@ function ModeratorDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [exportingToDrive, setExportingToDrive] = useState(false);
+
   /* ---------- SOCKET SETUP ---------- */
 
   useEffect(() => {
@@ -95,7 +97,14 @@ function ModeratorDashboardContent() {
     socket.on('connect', () => {
       setIsConnected(true);
       socketService.getActiveSessions();
-      socketService.checkGoogleAuth();
+
+      // Try to re-link Google auth from localStorage
+      const storedEmail = localStorage.getItem('google_drive_email');
+      if (storedEmail) {
+        socketService.linkGoogleAuth(storedEmail);
+      } else {
+        socketService.checkGoogleAuth();
+      }
     });
 
     socket.on('disconnect', () => setIsConnected(false));
@@ -122,12 +131,26 @@ function ModeratorDashboardContent() {
 
     socketService.onGoogleAuthStatus((data) => {
       setGoogleConnected(data.connected);
-      setGoogleEmail(data.email || null);
+      if (data.connected && data.email) {
+        setGoogleEmail(data.email);
+        localStorage.setItem('google_drive_email', data.email);
+      } else if (!data.connected) {
+        setGoogleEmail(null);
+        localStorage.removeItem('google_drive_email');
+      }
+    });
+
+    socketService.onGoogleExportResult((data) => {
+      setExportingToDrive(false);
+      if (data.success) {
+        alert(`Exported ${data.exported} of ${data.total} session(s) to Google Drive.`);
+      } else {
+        alert(`Export failed: ${data.error || 'Unknown error'}`);
+      }
     });
 
     // All sessions (history)
     socketService.onAllSessions((sessions) => {
-      // Sort by lastActivity descending
       const sorted = [...sessions].sort(
         (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
       );
@@ -137,14 +160,17 @@ function ModeratorDashboardContent() {
     return () => socketService.disconnect();
   }, []);
 
-  // Check for Google OAuth redirect
+  // Check for Google OAuth redirect (after consent screen)
   useEffect(() => {
     const connected = searchParams.get('google_connected');
     const email = searchParams.get('email');
     if (connected === 'true' && email) {
+      const decodedEmail = decodeURIComponent(email);
       setGoogleConnected(true);
-      setGoogleEmail(decodeURIComponent(email));
-      // Clean URL
+      setGoogleEmail(decodedEmail);
+      localStorage.setItem('google_drive_email', decodedEmail);
+      // Re-link the new socket to this email
+      socketService.linkGoogleAuth(decodedEmail);
       router.replace('/moderator');
     } else if (connected === 'false') {
       router.replace('/moderator');
@@ -267,7 +293,12 @@ function ModeratorDashboardContent() {
                 </svg>
                 <span className="text-green-700 font-medium">{googleEmail}</span>
                 <button
-                  onClick={() => socketService.disconnectGoogle()}
+                  onClick={() => {
+                    socketService.disconnectGoogle();
+                    localStorage.removeItem('google_drive_email');
+                    setGoogleConnected(false);
+                    setGoogleEmail(null);
+                  }}
                   className="text-green-600 hover:text-red-600 text-xs underline ml-1"
                 >
                   Disconnect
@@ -470,13 +501,30 @@ function ModeratorDashboardContent() {
                   Reload
                 </button>
                 {selectedHistoryIds.size > 0 && (
-                  <button
-                    onClick={exportSelectedAsCSV}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700"
-                  >
-                    <ArrowDownTrayIcon className="w-4 h-4" />
-                    Export {selectedHistoryIds.size} Session{selectedHistoryIds.size > 1 ? 's' : ''} (CSV)
-                  </button>
+                  <>
+                    <button
+                      onClick={exportSelectedAsCSV}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700"
+                    >
+                      <ArrowDownTrayIcon className="w-4 h-4" />
+                      Export {selectedHistoryIds.size} Session{selectedHistoryIds.size > 1 ? 's' : ''} (CSV)
+                    </button>
+                    {googleConnected && (
+                      <button
+                        onClick={() => {
+                          setExportingToDrive(true);
+                          socketService.exportSessionsToGoogleDrive(Array.from(selectedHistoryIds));
+                        }}
+                        disabled={exportingToDrive}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M7.71 3.5L1.15 15l3.43 5.96h6.86l-3.43-5.96L7.71 3.5zm8.58 0l-3.43 5.96 3.43 5.96h6.86L19.72 9.5 16.29 3.5zm-4.29 7.46l-3.43 5.96h6.86l3.43-5.96H12z"/>
+                        </svg>
+                        {exportingToDrive ? 'Saving...' : `Save ${selectedHistoryIds.size} to Google Drive`}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
