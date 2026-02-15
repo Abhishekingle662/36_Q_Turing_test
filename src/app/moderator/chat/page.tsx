@@ -6,16 +6,21 @@ import socketService from '@/lib/socket';
 
 import {
   ArrowLeftIcon,
-  SignalIcon,
-  CpuChipIcon,
-  UserIcon,
   PaperAirplaneIcon,
   StopCircleIcon,
   ArrowDownTrayIcon,
   InformationCircleIcon,
+  LockClosedIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline';
 
 /* ---------- TYPES ---------- */
+
+type ExperimentCondition =
+  | 'truthful-human'
+  | 'truthful-ai'
+  | 'deceptive-ai-as-human'
+  | 'deceptive-human-as-ai';
 
 interface Message {
   id: string;
@@ -23,6 +28,48 @@ interface Message {
   sender: 'participant' | 'moderator';
   timestamp: Date;
 }
+
+const CONDITION_CONFIG: Record<ExperimentCondition, {
+  label: string;
+  description: string;
+  visibleLabel: string;
+  responseSource: string;
+  inputEnabled: boolean;
+  badgeColor: string;
+}> = {
+  'truthful-human': {
+    label: 'True Human Mode',
+    description: 'You are the human responder. The participant sees "Human" and you type the responses.',
+    visibleLabel: 'Human',
+    responseSource: 'Moderator (you)',
+    inputEnabled: true,
+    badgeColor: 'bg-teal-100 text-teal-700 border-teal-200',
+  },
+  'truthful-ai': {
+    label: 'True AI Mode',
+    description: 'AI generates all responses. The participant sees "AI". You are observing only.',
+    visibleLabel: 'AI',
+    responseSource: 'AI (automated)',
+    inputEnabled: false,
+    badgeColor: 'bg-purple-100 text-purple-700 border-purple-200',
+  },
+  'deceptive-human-as-ai': {
+    label: 'Human Pretending to be AI',
+    description: 'You type the responses, but the participant sees them as coming from "AI".',
+    visibleLabel: 'AI',
+    responseSource: 'Moderator (you)',
+    inputEnabled: true,
+    badgeColor: 'bg-amber-100 text-amber-700 border-amber-200',
+  },
+  'deceptive-ai-as-human': {
+    label: 'AI Pretending to be Human',
+    description: 'AI generates all responses, presented to the participant as "Human". You are observing only.',
+    visibleLabel: 'Human',
+    responseSource: 'AI (automated)',
+    inputEnabled: false,
+    badgeColor: 'bg-rose-100 text-rose-700 border-rose-200',
+  },
+};
 
 /* ---------- TYPING INDICATOR ---------- */
 
@@ -48,11 +95,11 @@ function ModeratorChatContent() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   const [isParticipantTyping, setIsParticipantTyping] = useState(false);
   const [participantConnected, setParticipantConnected] = useState(true);
   const [isChatEnded, setIsChatEnded] = useState(false);
-  const [partnerType, setPartnerType] = useState<'human' | 'llm'>('human');
+  const [condition, setCondition] = useState<ExperimentCondition>('truthful-human');
+  const [moderatorInputEnabled, setModeratorInputEnabled] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -61,6 +108,8 @@ function ModeratorChatContent() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const config = CONDITION_CONFIG[condition];
 
   /* ---------- SOCKET ---------- */
 
@@ -73,14 +122,18 @@ function ModeratorChatContent() {
     const socket = socketService.connect();
 
     socket.on('connect', () => {
-      setIsConnected(true);
       socketService.joinAsModerator(sessionId);
     });
 
-    socket.on('disconnect', () => setIsConnected(false));
-
     socketService.onSessionJoined((data) => {
-      if (data.partnerType) setPartnerType(data.partnerType);
+      if (data.condition) setCondition(data.condition as ExperimentCondition);
+      if (typeof data.moderatorInputEnabled === 'boolean') {
+        setModeratorInputEnabled(data.moderatorInputEnabled);
+        // Clear any pre-drafted input when joining a disabled session
+        if (!data.moderatorInputEnabled) {
+          setInputMessage('');
+        }
+      }
     });
 
     socketService.onChatHistory(history => {
@@ -120,13 +173,14 @@ function ModeratorChatContent() {
   /* ---------- ACTIONS ---------- */
 
   const sendMessage = () => {
-    if (!inputMessage.trim() || !sessionId) return;
+    if (!inputMessage.trim() || !sessionId || !moderatorInputEnabled) return;
     socketService.sendMessage(sessionId, inputMessage, 'moderator');
     setInputMessage('');
     socketService.stopTyping(sessionId, 'moderator');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!moderatorInputEnabled) return;
     setInputMessage(e.target.value);
     if (!sessionId) return;
 
@@ -202,15 +256,6 @@ function ModeratorChatContent() {
                   Participant {participantConnected ? 'Online' : 'Offline'}
                 </span>
               </div>
-
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${partnerType === 'llm' ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'}`}>
-                {partnerType === 'llm' ? (
-                  <CpuChipIcon className="w-3.5 h-3.5" />
-                ) : (
-                  <UserIcon className="w-3.5 h-3.5" />
-                )}
-                {partnerType === 'llm' ? 'AI Participant' : 'Human Participant'}
-              </span>
             </div>
           </div>
 
@@ -237,6 +282,39 @@ function ModeratorChatContent() {
         </div>
       </header>
 
+      {/* MODE INDICATOR BANNER — visible to moderator only */}
+      <div className={`border-b px-6 py-3 flex items-center justify-between ${config.badgeColor}`}>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${config.badgeColor}`}>
+            {config.inputEnabled ? (
+              <PaperAirplaneIcon className="w-3.5 h-3.5" />
+            ) : (
+              <EyeIcon className="w-3.5 h-3.5" />
+            )}
+            {config.label}
+          </span>
+          <span className="text-sm font-medium">
+            Participant sees: <strong>&quot;{config.visibleLabel}&quot;</strong>
+          </span>
+          <span className="text-sm">
+            Response by: <strong>{config.responseSource}</strong>
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-sm font-medium flex-shrink-0">
+          {config.inputEnabled ? (
+            <span className="inline-flex items-center gap-1 text-teal-700">
+              <PaperAirplaneIcon className="w-4 h-4" />
+              Input Enabled
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-red-600">
+              <LockClosedIcon className="w-4 h-4" />
+              Input Locked
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* CHAT */}
       <main className="max-w-6xl mx-auto w-full px-6 py-4 flex-1 flex flex-col min-h-0">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -245,7 +323,9 @@ function ModeratorChatContent() {
           <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
             {messages.length === 0 && (
               <div className="text-center text-slate-400 py-16 text-sm">
-                No messages yet. Start the conversation.
+                {config.inputEnabled
+                  ? 'No messages yet. Start the conversation.'
+                  : 'No messages yet. Waiting for AI to respond.'}
               </div>
             )}
 
@@ -259,7 +339,7 @@ function ModeratorChatContent() {
                 }`}
               >
                 <div
-                  className={`max-w-[85%] px-5 py-3.5 rounded-2xl shadow-sm text-base leading-relaxed ${
+                  className={`max-w-[85%] px-5 py-3.5 rounded-2xl shadow-sm text-base leading-relaxed whitespace-pre-line ${
                     msg.sender === 'moderator'
                       ? 'bg-teal-600 text-white rounded-br-none'
                       : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
@@ -277,14 +357,19 @@ function ModeratorChatContent() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* INPUT / INFO */}
+          {/* INPUT / LOCKED NOTICE */}
           <div className="border-t border-slate-200 bg-white p-4 flex-none">
-            {partnerType === 'llm' ? (
+            {!moderatorInputEnabled ? (
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-600 flex items-center gap-3">
-                <div className="bg-white p-1.5 rounded-lg shadow-sm text-teal-600">
-                  <CpuChipIcon className="w-5 h-5" />
+                <div className="bg-white p-1.5 rounded-lg shadow-sm text-red-500">
+                  <LockClosedIcon className="w-5 h-5" />
                 </div>
-                AI session is fully automated. You are viewing in real time.
+                <div>
+                  <span className="font-semibold text-slate-700">Input locked.</span>{' '}
+                  {condition === 'truthful-ai'
+                    ? 'AI is generating responses. You are observing this session in real time.'
+                    : 'AI is generating responses disguised as human. You are observing this session in real time.'}
+                </div>
               </div>
             ) : (
               <>
@@ -299,14 +384,18 @@ function ModeratorChatContent() {
                         sendMessage();
                       }
                     }}
-                    placeholder="Type your response…"
+                    placeholder={
+                      condition === 'deceptive-human-as-ai'
+                        ? 'Type your response (participant sees this as AI)…'
+                        : 'Type your response…'
+                    }
                     rows={1}
-                    disabled={!participantConnected}
+                    disabled={!participantConnected || isChatEnded}
                     className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all placeholder-slate-400 text-slate-900"
                   />
                   <button
                     onClick={sendMessage}
-                    disabled={!inputMessage.trim()}
+                    disabled={!inputMessage.trim() || isChatEnded}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors"
                   >
                     <PaperAirplaneIcon className="w-5 h-5" />
@@ -315,7 +404,9 @@ function ModeratorChatContent() {
                 </div>
 
                 <p className="mt-2 text-xs text-slate-400 px-1">
-                  Respond naturally as a human participant. Press Enter to send.
+                  {condition === 'deceptive-human-as-ai'
+                    ? 'You are pretending to be AI. The participant believes they are chatting with an AI. Press Enter to send.'
+                    : 'Respond naturally as a human participant. Press Enter to send.'}
                 </p>
               </>
             )}
@@ -328,10 +419,9 @@ function ModeratorChatContent() {
             <InformationCircleIcon className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-900 mb-1 text-sm">Moderator Guidelines</h3>
+            <h3 className="font-semibold text-slate-900 mb-1 text-sm">Session Mode: {config.label}</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Act naturally. Do not reveal your moderator role. Participants
-              believe they are chatting with another study participant.
+              {config.description}
             </p>
           </div>
         </div>

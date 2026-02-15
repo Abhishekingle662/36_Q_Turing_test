@@ -266,17 +266,19 @@ export default function ModeratorDashboard() {
                     {session.status === 'active' && (
                       <button
                         onClick={() => handleJoinSession(session.sessionId)}
-                        disabled={session.hasModeratorAssigned && !isAI}
+                        disabled={session.hasModeratorAssigned && session.partnerType === 'human'}
                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:bg-slate-200 disabled:text-slate-400"
                       >
                         <EyeIcon className="w-4 h-4" />
-                        {session.hasModeratorAssigned && !isAI
+                        {session.hasModeratorAssigned && session.partnerType === 'human'
                           ? 'Already Moderated'
-                          : 'Join Session'}
+                          : isAI
+                            ? 'Observe Session'
+                            : 'Join Session'}
                       </button>
                     )}
 
-                    {isAI && session.status === 'active' && (
+                    {session.status === 'active' && (
                       <button
                         onClick={() =>
                           handleEndAISession(
@@ -287,7 +289,7 @@ export default function ModeratorDashboard() {
                         className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-white hover:bg-slate-900"
                       >
                         <StopCircleIcon className="w-4 h-4" />
-                        End AI Session
+                        End Session
                       </button>
                     )}
 

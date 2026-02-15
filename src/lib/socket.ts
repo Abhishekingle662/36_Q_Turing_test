@@ -15,6 +15,7 @@ type SessionJoinedPayload = {
   partnerType?: PartnerType;
   disclosedType?: PartnerType;
   condition?: ExperimentCondition;
+  moderatorInputEnabled?: boolean;
   session?: unknown;
 };
 
