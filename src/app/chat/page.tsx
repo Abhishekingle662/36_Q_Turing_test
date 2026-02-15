@@ -77,7 +77,6 @@ export default function ChatPage() {
 
   // partnerType = actual partner (human or llm)
   // disclosedType = what the participant is told (human or llm)
-  const [participantType, setParticipantType] = useState<'human' | 'ai'>('human');
   const [partnerType, setPartnerType] = useState<'human' | 'llm'>('human');
   const [disclosedType, setDisclosedType] = useState<'human' | 'llm'>('human');
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
@@ -160,7 +159,6 @@ export default function ChatPage() {
         // Use disclosedType (what participant is told) for UI display
         const disclosed = data.disclosedType || data.partnerType || 'human';
         setDisclosedType(disclosed);
-        setParticipantType(disclosed === 'llm' ? 'ai' : 'human');
         // Build welcome message based on disclosed type
         const partnerLabel = disclosed === 'llm'
           ? 'an AI research assistant'
@@ -285,23 +283,6 @@ export default function ChatPage() {
       socketService.sendMessage(sessionId, inputMessage, 'participant');
     }
 
-    if (participantType === 'ai' && partnerType !== 'llm') {
-      // Fallback to AI simulation if no moderator
-      setIsTyping(true);
-      setTimeout(() => {
-        // Generate unique ID for AI response
-        const aiUniqueId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_ai_${messages.length + 1}`;
-        const responseMessage: Message = {
-          id: aiUniqueId,
-          content: generateResponse(inputMessage, participantType),
-          sender: participantType,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, responseMessage]);
-        setIsTyping(false);
-      }, 1000 + Math.random() * 2000);
-    }
-
     setInputMessage('');
 
     // Stop typing indicator
@@ -310,28 +291,6 @@ export default function ChatPage() {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-    }
-  };
-
-  const generateResponse = (userMessage: string, type: 'human' | 'ai'): string => {
-    if (type === 'ai') {
-      const responses = [
-        "That's an interesting perspective. Can you tell me more about what led you to think that way?",
-        "I appreciate you sharing that. How do you think this relates to your personal experiences?",
-        "Thank you for being so open. What aspects of this topic do you find most compelling?",
-        "That's a thoughtful point. Have you noticed any patterns in how you approach similar situations?",
-        "I find your viewpoint fascinating. Could you elaborate on the reasoning behind it?",
-      ];
-      return responses[Math.floor(Math.random() * responses.length)];
-    } else {
-      const responses = [
-        "Yeah, I can see what you mean. I've had similar experiences myself.",
-        "That's really interesting! I never thought about it that way before.",
-        "Hmm, that's a good point. Do you think most people would agree with that?",
-        "I appreciate you sharing that. It reminds me of something that happened to me recently.",
-        "That's so true! I've been thinking about similar things lately.",
-      ];
-      return responses[Math.floor(Math.random() * responses.length)];
     }
   };
 
@@ -359,13 +318,6 @@ export default function ChatPage() {
     typingTimeoutRef.current = setTimeout(() => {
       socketService.stopTyping(sessionId, 'participant');
     }, 1000);
-  };
-
-  const switchParticipant = () => {
-    setParticipantType(prev => prev === 'human' ? 'ai' : 'human');
-    // Reset typing indicators when switching
-    setIsTyping(false);
-    setIsModeratorTyping(false);
   };
 
   const handleStartConversation = () => {
@@ -527,13 +479,7 @@ export default function ChatPage() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={switchParticipant}
-                  className="text-xs px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 text-slate-600"
-                  style={{ display: 'none' }}
-                >
-                  Switch Participant
-                </button>
+
               </div>
             </div>
 

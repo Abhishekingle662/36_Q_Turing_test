@@ -55,18 +55,16 @@ interface ChatSession {
 const chatSessions = new Map<string, ChatSession>();
 const sessionStats = { human: 0, llm: 0 };
 
-// Round-robin counter for balanced condition assignment
-const conditionOrder: ExperimentCondition[] = [
+// Randomized condition assignment
+const ALL_CONDITIONS: ExperimentCondition[] = [
   'truthful-human',
   'truthful-ai',
   'deceptive-ai-as-human',
   'deceptive-human-as-ai',
 ];
-let conditionIndex = 0;
 
 const assignCondition = (): { partnerType: PartnerType; disclosedType: PartnerType; condition: ExperimentCondition } => {
-  const condition = conditionOrder[conditionIndex % conditionOrder.length];
-  conditionIndex++;
+  const condition = ALL_CONDITIONS[Math.floor(Math.random() * ALL_CONDITIONS.length)];
 
   switch (condition) {
     case 'truthful-human':
