@@ -100,6 +100,8 @@ function ModeratorChatContent() {
   const [isChatEnded, setIsChatEnded] = useState(false);
   const [condition, setCondition] = useState<ExperimentCondition>('truthful-human');
   const [moderatorInputEnabled, setModeratorInputEnabled] = useState(true);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [savingToDrive, setSavingToDrive] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -123,6 +125,24 @@ function ModeratorChatContent() {
 
     socket.on('connect', () => {
       socketService.joinAsModerator(sessionId);
+      // Re-link Google auth
+      const storedEmail = localStorage.getItem('google_drive_email');
+      if (storedEmail) {
+        socketService.linkGoogleAuth(storedEmail);
+      }
+    });
+
+    socketService.onGoogleAuthStatus((data) => {
+      setGoogleConnected(data.connected);
+    });
+
+    socketService.onGoogleExportResult((data) => {
+      setSavingToDrive(false);
+      if (data.success) {
+        alert(`Session saved to Google Drive.`);
+      } else {
+        alert(`Export failed: ${data.error || 'Unknown error'}`);
+      }
     });
 
     socketService.onSessionJoined((data) => {
@@ -261,13 +281,30 @@ function ModeratorChatContent() {
 
           <div className="flex items-center gap-3">
             {messages.length > 0 && (
-              <button
-                onClick={exportChat}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 border border-teal-200 text-sm font-medium rounded-lg hover:bg-teal-100 transition-colors"
-              >
-                <ArrowDownTrayIcon className="w-4 h-4" />
-                Export CSV
-              </button>
+              <>
+                <button
+                  onClick={exportChat}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 text-teal-700 border border-teal-200 text-sm font-medium rounded-lg hover:bg-teal-100 transition-colors"
+                >
+                  <ArrowDownTrayIcon className="w-4 h-4" />
+                  Export CSV
+                </button>
+                {googleConnected && sessionId && (
+                  <button
+                    onClick={() => {
+                      setSavingToDrive(true);
+                      socketService.exportSessionsToGoogleDrive([sessionId]);
+                    }}
+                    disabled={savingToDrive}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 text-sm font-medium rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7.71 3.5L1.15 15l3.43 5.96h6.86l-3.43-5.96L7.71 3.5zm8.58 0l-3.43 5.96 3.43 5.96h6.86L19.72 9.5 16.29 3.5zm-4.29 7.46l-3.43 5.96h6.86l3.43-5.96H12z"/>
+                    </svg>
+                    {savingToDrive ? 'Saving...' : 'Save to Drive'}
+                  </button>
+                )}
+              </>
             )}
             {!isChatEnded && (
               <button

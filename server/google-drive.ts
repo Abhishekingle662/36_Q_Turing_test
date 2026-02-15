@@ -2,18 +2,9 @@ import { google } from 'googleapis';
 import { OAuth2Client, Credentials } from 'google-auth-library';
 
 // ── Environment ──────────────────────────────────────────────────────
-// Required env vars:
-//   GOOGLE_CLIENT_ID      – OAuth 2.0 client ID
-//   GOOGLE_CLIENT_SECRET  – OAuth 2.0 client secret
-//   GOOGLE_REDIRECT_URI   – e.g. http://localhost:3000/auth/google/callback
-
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-
-// GOOGLE_REDIRECT_URI can be set explicitly, or auto-detected from the
-// request origin at runtime (see getAuthUrl / handleAuthCallback).
 const EXPLICIT_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || '';
-
 const CALLBACK_PATH = '/auth/google/callback';
 
 const SCOPES = [
@@ -26,9 +17,12 @@ const SCOPES = [
 export const isGoogleDriveConfigured = () =>
   Boolean(CLIENT_ID && CLIENT_SECRET);
 
-// ── Per-moderator token store ────────────────────────────────────────
+// ── Token storage keyed by email (survives socket reconnects) ────────
+// email → tokens
 const tokenStore = new Map<string, Credentials>();
-const emailStore = new Map<string, string>();
+// socketId → email (current session mapping)
+const socketToEmail = new Map<string, string>();
+// OAuth state → { socketId, redirectUri }
 const pendingOAuth = new Map<string, { socketId: string; redirectUri: string }>();
 
 // ── OAuth helpers ────────────────────────────────────────────────────
@@ -36,10 +30,6 @@ const pendingOAuth = new Map<string, { socketId: string; redirectUri: string }>(
 const createOAuth2Client = (redirectUri: string): OAuth2Client =>
   new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, redirectUri);
 
-/**
- * Build the redirect URI from the request origin or env var.
- * `origin` is passed from the client (e.g. "https://myapp.com").
- */
 const resolveRedirectUri = (origin?: string): string => {
   if (EXPLICIT_REDIRECT_URI) return EXPLICIT_REDIRECT_URI;
   if (origin) return `${origin.replace(/\/$/, '')}${CALLBACK_PATH}`;
@@ -64,7 +54,7 @@ export const getAuthUrl = (socketId: string, origin?: string): string => {
   return url;
 };
 
-/** Exchange the callback code for tokens. Returns the socket ID. */
+/** Exchange the callback code for tokens. Returns the email. */
 export const handleAuthCallback = async (
   code: string,
   state: string
@@ -77,50 +67,83 @@ export const handleAuthCallback = async (
   const client = createOAuth2Client(redirectUri);
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
-  tokenStore.set(socketId, tokens);
 
-  // Fetch the user's email for display
+  // Fetch email
   const oauth2 = google.oauth2({ version: 'v2', auth: client });
   const { data } = await oauth2.userinfo.get();
   const email = data.email || 'unknown';
-  emailStore.set(socketId, email);
 
-  console.log(`[GDRIVE] Moderator ${socketId} authenticated as ${email}`);
+  // Store tokens keyed by email (persistent across socket reconnects)
+  tokenStore.set(email, tokens);
+  socketToEmail.set(socketId, email);
+
+  console.log(`[GDRIVE] Authenticated: ${email} (socket ${socketId})`);
   return { socketId, email };
 };
 
-/** Check if a moderator has valid tokens. */
-export const isModeratorAuthenticated = (socketId: string): boolean =>
-  tokenStore.has(socketId);
-
-/** Get the email for a connected moderator. */
-export const getModeratorEmail = (socketId: string): string | undefined =>
-  emailStore.get(socketId);
-
-/** Remove tokens when moderator disconnects. */
-export const clearModeratorTokens = (socketId: string) => {
-  tokenStore.delete(socketId);
-  emailStore.delete(socketId);
+/**
+ * Link a new socket ID to an existing email's tokens.
+ * Called when a moderator reconnects and provides their email.
+ */
+export const linkSocketToEmail = (socketId: string, email: string): boolean => {
+  if (tokenStore.has(email)) {
+    socketToEmail.set(socketId, email);
+    console.log(`[GDRIVE] Socket ${socketId} linked to ${email}`);
+    return true;
+  }
+  return false;
 };
 
-/** Get an authenticated OAuth2Client for a moderator. */
+/** Check if a moderator (by socket) has valid tokens. */
+export const isModeratorAuthenticated = (socketId: string): boolean => {
+  const email = socketToEmail.get(socketId);
+  return email ? tokenStore.has(email) : false;
+};
+
+/** Check if an email has valid tokens (for reconnection). */
+export const isEmailAuthenticated = (email: string): boolean =>
+  tokenStore.has(email);
+
+/** Get the email for a socket. */
+export const getModeratorEmail = (socketId: string): string | undefined =>
+  socketToEmail.get(socketId);
+
+/** Disconnect a moderator's Google account. */
+export const clearModeratorTokens = (socketId: string) => {
+  const email = socketToEmail.get(socketId);
+  if (email) {
+    tokenStore.delete(email);
+    // Remove all socket mappings for this email
+    for (const [sid, e] of socketToEmail.entries()) {
+      if (e === email) socketToEmail.delete(sid);
+    }
+  }
+  socketToEmail.delete(socketId);
+};
+
+/** Clean up socket mapping on disconnect (keep tokens for reconnect). */
+export const onSocketDisconnect = (socketId: string) => {
+  socketToEmail.delete(socketId);
+};
+
+/** Get an authenticated OAuth2Client for a moderator socket. */
 const getClientForModerator = (socketId: string): OAuth2Client | null => {
-  const tokens = tokenStore.get(socketId);
+  const email = socketToEmail.get(socketId);
+  if (!email) return null;
+  const tokens = tokenStore.get(email);
   if (!tokens) return null;
-  // redirect_uri doesn't matter for API calls, only for token exchange
+
   const client = createOAuth2Client(resolveRedirectUri());
   client.setCredentials(tokens);
   client.on('tokens', (newTokens) => {
-    const existing = tokenStore.get(socketId);
-    tokenStore.set(socketId, { ...existing, ...newTokens });
+    const existing = tokenStore.get(email);
+    tokenStore.set(email, { ...existing, ...newTokens });
   });
   return client;
 };
 
 // ── Drive folder management ──────────────────────────────────────────
-// Cache: moderatorSocketId → { folderId, date }
 const folderCache = new Map<string, { rootFolderId: string; dateFolderId: string; date: string }>();
-
 const ROOT_FOLDER_NAME = 'Turing Test Research';
 
 const getOrCreateFolder = async (
@@ -128,7 +151,6 @@ const getOrCreateFolder = async (
   name: string,
   parentId?: string
 ): Promise<string> => {
-  // Search for existing folder
   let query = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   if (parentId) query += ` and '${parentId}' in parents`;
 
@@ -137,7 +159,6 @@ const getOrCreateFolder = async (
     return res.data.files[0].id!;
   }
 
-  // Create folder
   const folder = await drive.files.create({
     requestBody: {
       name,
@@ -150,46 +171,39 @@ const getOrCreateFolder = async (
   return folder.data.id!;
 };
 
-const getDayFolder = async (
-  moderatorSocketId: string,
-  auth: OAuth2Client
-): Promise<string> => {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const cached = folderCache.get(moderatorSocketId);
+const getDayFolder = async (email: string, auth: OAuth2Client): Promise<string> => {
+  const today = new Date().toISOString().slice(0, 10);
+  const cached = folderCache.get(email);
   if (cached && cached.date === today) return cached.dateFolderId;
 
   const drive = google.drive({ version: 'v3', auth });
   const rootFolderId = cached?.rootFolderId || await getOrCreateFolder(drive, ROOT_FOLDER_NAME);
   const dateFolderId = await getOrCreateFolder(drive, today, rootFolderId);
 
-  folderCache.set(moderatorSocketId, { rootFolderId, dateFolderId, date: today });
+  folderCache.set(email, { rootFolderId, dateFolderId, date: today });
   return dateFolderId;
 };
 
 // ── Doc/Sheet tracking per session ───────────────────────────────────
-// Key: `${moderatorSocketId}:${sessionId}:${date}`
-interface SessionDocs {
-  docId: string;
-  sheetId: string;
-}
+interface SessionDocs { docId: string; sheetId: string }
 const sessionDocsCache = new Map<string, SessionDocs>();
 
-const cacheKey = (moderatorSocketId: string, sessionId: string) => {
+const cacheKey = (email: string, sessionId: string) => {
   const today = new Date().toISOString().slice(0, 10);
-  return `${moderatorSocketId}:${sessionId}:${today}`;
+  return `${email}:${sessionId}:${today}`;
 };
 
 const getOrCreateSessionDocs = async (
-  moderatorSocketId: string,
+  email: string,
   sessionId: string,
   condition: string | undefined,
   auth: OAuth2Client
 ): Promise<SessionDocs> => {
-  const key = cacheKey(moderatorSocketId, sessionId);
+  const key = cacheKey(email, sessionId);
   const cached = sessionDocsCache.get(key);
   if (cached) return cached;
 
-  const folderId = await getDayFolder(moderatorSocketId, auth);
+  const folderId = await getDayFolder(email, auth);
   const today = new Date().toISOString().slice(0, 10);
   const shortId = sessionId.slice(-8);
   const condLabel = condition || 'unknown';
@@ -207,19 +221,16 @@ const getOrCreateSessionDocs = async (
   });
   const docId = doc.data.id!;
 
-  // Write doc header
   const docs = google.docs({ version: 'v1', auth });
   await docs.documents.batchUpdate({
     documentId: docId,
     requestBody: {
-      requests: [
-        {
-          insertText: {
-            location: { index: 1 },
-            text: `Chat Transcript\nSession: ${sessionId}\nCondition: ${condLabel}\nDate: ${today}\n\n`,
-          },
+      requests: [{
+        insertText: {
+          location: { index: 1 },
+          text: `Chat Transcript\nSession: ${sessionId}\nCondition: ${condLabel}\nDate: ${today}\n\n`,
         },
-      ],
+      }],
     },
   });
 
@@ -234,7 +245,6 @@ const getOrCreateSessionDocs = async (
   });
   const sheetId = sheet.data.id!;
 
-  // Write sheet header row
   const sheets = google.sheets({ version: 'v4', auth });
   await sheets.spreadsheets.values.update({
     spreadsheetId: sheetId,
@@ -251,7 +261,7 @@ const getOrCreateSessionDocs = async (
   return result;
 };
 
-// ── Public API: auto-save a message ──────────────────────────────────
+// ── Public API ───────────────────────────────────────────────────────
 
 export interface ChatMessageForExport {
   id: string;
@@ -260,23 +270,20 @@ export interface ChatMessageForExport {
   timestamp: Date;
 }
 
-/**
- * Auto-save a single message to the moderator's Google Drive.
- * Creates the day folder, Doc, and Sheet on first call per session per day.
- */
+/** Auto-save a single message to the moderator's Google Drive. */
 export const autoSaveMessageToGoogleDrive = async (
   moderatorSocketId: string,
   sessionId: string,
   condition: string | undefined,
   message: ChatMessageForExport
 ): Promise<boolean> => {
+  const email = socketToEmail.get(moderatorSocketId);
+  if (!email) return false;
   const auth = getClientForModerator(moderatorSocketId);
   if (!auth) return false;
 
   try {
-    const { docId, sheetId } = await getOrCreateSessionDocs(
-      moderatorSocketId, sessionId, condition, auth
-    );
+    const { docId, sheetId } = await getOrCreateSessionDocs(email, sessionId, condition, auth);
 
     const timestamp = new Date(message.timestamp).toLocaleString();
     const senderLabel = message.sender === 'participant' ? 'Participant' : 'Moderator/AI';
@@ -284,7 +291,6 @@ export const autoSaveMessageToGoogleDrive = async (
     // Append to Google Doc
     const docs = google.docs({ version: 'v1', auth });
     const docContent = `[${timestamp}] ${senderLabel}:\n${message.content}\n\n`;
-    // Get current doc length to append at end
     const docMeta = await docs.documents.get({ documentId: docId });
     const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
     const insertAt = Math.max(1, endIndex - 1);
@@ -292,14 +298,12 @@ export const autoSaveMessageToGoogleDrive = async (
     await docs.documents.batchUpdate({
       documentId: docId,
       requestBody: {
-        requests: [
-          {
-            insertText: {
-              location: { index: insertAt },
-              text: docContent,
-            },
+        requests: [{
+          insertText: {
+            location: { index: insertAt },
+            text: docContent,
           },
-        ],
+        }],
       },
     });
 
@@ -330,7 +334,79 @@ export const autoSaveMessageToGoogleDrive = async (
 };
 
 /**
- * Get all moderator socket IDs that have Google Drive connected.
+ * Export an entire session's messages to Google Drive (batch).
+ * Used for manual "Save to Google Drive" from the history tab.
  */
+export const exportSessionToGoogleDrive = async (
+  moderatorSocketId: string,
+  sessionId: string,
+  condition: string | undefined,
+  messages: ChatMessageForExport[]
+): Promise<boolean> => {
+  const email = socketToEmail.get(moderatorSocketId);
+  if (!email) return false;
+  const auth = getClientForModerator(moderatorSocketId);
+  if (!auth) return false;
+
+  try {
+    const { docId, sheetId } = await getOrCreateSessionDocs(email, sessionId, condition, auth);
+
+    // Batch append all messages to Doc
+    const docs = google.docs({ version: 'v1', auth });
+    const docMeta = await docs.documents.get({ documentId: docId });
+    const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
+    let insertAt = Math.max(1, endIndex - 1);
+
+    const docText = messages.map(m => {
+      const ts = new Date(m.timestamp).toLocaleString();
+      const label = m.sender === 'participant' ? 'Participant' : 'Moderator/AI';
+      return `[${ts}] ${label}:\n${m.content}\n\n`;
+    }).join('');
+
+    if (docText) {
+      await docs.documents.batchUpdate({
+        documentId: docId,
+        requestBody: {
+          requests: [{
+            insertText: {
+              location: { index: insertAt },
+              text: docText,
+            },
+          }],
+        },
+      });
+    }
+
+    // Batch append all messages to Sheet
+    const sheets = google.sheets({ version: 'v4', auth });
+    const rows = messages.map(m => [
+      new Date(m.timestamp).toISOString(),
+      m.sender,
+      m.content,
+      sessionId,
+      condition || 'unknown',
+      m.id,
+    ]);
+
+    if (rows.length) {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: sheetId,
+        range: 'Sheet1!A:F',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: rows },
+      });
+    }
+
+    console.log(`[GDRIVE] Batch exported ${messages.length} messages for session ${sessionId.slice(-8)}`);
+    return true;
+  } catch (err) {
+    console.error(`[GDRIVE] Error batch exporting:`, err);
+    return false;
+  }
+};
+
 export const getAuthenticatedModeratorIds = (): string[] =>
-  Array.from(tokenStore.keys());
+  Array.from(socketToEmail.keys()).filter(sid => {
+    const email = socketToEmail.get(sid);
+    return email && tokenStore.has(email);
+  });

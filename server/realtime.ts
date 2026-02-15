@@ -12,8 +12,11 @@ import {
   getModeratorEmail,
   clearModeratorTokens,
   autoSaveMessageToGoogleDrive,
+  exportSessionToGoogleDrive,
   isGoogleDriveConfigured,
-  getAuthenticatedModeratorIds,
+  linkSocketToEmail,
+  isEmailAuthenticated,
+  onSocketDisconnect,
 } from './google-drive.js';
 
 type PartnerType = 'human' | 'llm';
@@ -275,6 +278,16 @@ export const initRealtime = (io: Server) => {
       socket.emit('google-auth-url', { url });
     });
 
+    // Reconnect: client sends stored email to re-link this socket to existing tokens
+    socket.on('google-auth-link', (data: { email: string }) => {
+      if (data.email && isEmailAuthenticated(data.email)) {
+        linkSocketToEmail(socket.id, data.email);
+        socket.emit('google-auth-status', { connected: true, email: data.email });
+      } else {
+        socket.emit('google-auth-status', { connected: false });
+      }
+    });
+
     socket.on('google-auth-check', () => {
       const connected = isModeratorAuthenticated(socket.id);
       const email = connected ? getModeratorEmail(socket.id) : undefined;
@@ -285,6 +298,35 @@ export const initRealtime = (io: Server) => {
       clearModeratorTokens(socket.id);
       socket.emit('google-auth-status', { connected: false });
       console.log(`[GDRIVE] Moderator ${socket.id} disconnected Google account`);
+    });
+
+    // Manual batch export to Google Drive
+    socket.on('google-export-sessions', async (data: { sessionIds: string[] }) => {
+      if (!isModeratorAuthenticated(socket.id)) {
+        socket.emit('google-export-result', { success: false, error: 'Not authenticated with Google' });
+        return;
+      }
+
+      let exported = 0;
+      for (const sessionId of data.sessionIds) {
+        const session = chatSessions.get(sessionId);
+        if (session && session.messages.length > 0) {
+          const ok = await exportSessionToGoogleDrive(
+            socket.id,
+            sessionId,
+            session.condition,
+            session.messages
+          );
+          if (ok) exported++;
+        }
+      }
+
+      socket.emit('google-export-result', {
+        success: true,
+        exported,
+        total: data.sessionIds.length,
+      });
+      console.log(`[GDRIVE] Batch export: ${exported}/${data.sessionIds.length} sessions`);
     });
 
     // ── Chat history for moderator review ────────────────────────
@@ -707,6 +749,7 @@ export const initRealtime = (io: Server) => {
       }
 
       connectedUsers.delete(socket.id);
+      onSocketDisconnect(socket.id);
     });
   });
 
