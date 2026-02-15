@@ -16,6 +16,16 @@ const exportsDir = resolve(__dirname, '../exports');
 // Master workbook path for continuous export
 const MASTER_EXCEL_PATH = resolve(exportsDir, 'research_data_master.xlsx');
 
+// Serialize all Excel write operations to prevent concurrent read-modify-write races.
+// Without this, two near-simultaneous messages can both read the same file state,
+// and the second write silently drops the first message's row.
+let writeQueue: Promise<void> = Promise.resolve();
+const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
+  const result = writeQueue.then(fn, fn);
+  writeQueue = result.then(() => {}, () => {});
+  return result;
+};
+
 /**
  * Ensure exports directory exists
  */
@@ -109,7 +119,7 @@ const getOrCreateMasterWorkbook = async (): Promise<ExcelJS.Workbook> => {
 /**
  * Add message row to Excel workbook
  */
-export const exportMessageToExcel = async (
+export const exportMessageToExcel = (
   message: {
     id: string;
     content: string;
@@ -118,7 +128,7 @@ export const exportMessageToExcel = async (
   },
   sessionId: string,
   partnerType?: 'human' | 'llm'
-): Promise<boolean> => {
+): Promise<boolean> => enqueue(async () => {
   try {
     await ensureExportsDirExists();
     const workbook = await getOrCreateMasterWorkbook();
@@ -145,12 +155,12 @@ export const exportMessageToExcel = async (
     console.error('[EXCEL] Error exporting message:', err);
     return false;
   }
-};
+});
 
 /**
  * Add session summary row to Excel workbook
  */
-export const exportSessionSummaryToExcel = async (
+export const exportSessionSummaryToExcel = (
   sessionId: string,
   session: {
     participantId: string;
@@ -165,7 +175,7 @@ export const exportSessionSummaryToExcel = async (
     }>;
     moderatorId?: string;
   }
-): Promise<boolean> => {
+): Promise<boolean> => enqueue(async () => {
   try {
     await ensureExportsDirExists();
     const workbook = await getOrCreateMasterWorkbook();
@@ -222,7 +232,7 @@ export const exportSessionSummaryToExcel = async (
     console.error('[EXCEL] Error exporting session summary:', err);
     return false;
   }
-};
+});
 
 /**
  * Get path to master Excel file
