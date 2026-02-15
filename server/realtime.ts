@@ -302,6 +302,8 @@ export const initRealtime = (io: Server) => {
 
     // Manual batch export to Google Drive
     socket.on('google-export-sessions', async (data: { sessionIds: string[] }) => {
+      console.log(`[GDRIVE] Export request: ${data.sessionIds.length} sessions, socket=${socket.id}, authenticated=${isModeratorAuthenticated(socket.id)}`);
+
       if (!isModeratorAuthenticated(socket.id)) {
         socket.emit('google-export-result', { success: false, error: 'Not authenticated with Google' });
         return;
@@ -310,14 +312,21 @@ export const initRealtime = (io: Server) => {
       let exported = 0;
       for (const sessionId of data.sessionIds) {
         const session = chatSessions.get(sessionId);
+        console.log(`[GDRIVE] Session ${sessionId.slice(-8)}: found=${!!session}, messages=${session?.messages?.length ?? 0}`);
+
         if (session && session.messages.length > 0) {
-          const ok = await exportSessionToGoogleDrive(
-            socket.id,
-            sessionId,
-            session.condition,
-            session.messages
-          );
-          if (ok) exported++;
+          try {
+            const ok = await exportSessionToGoogleDrive(
+              socket.id,
+              sessionId,
+              session.condition,
+              session.messages
+            );
+            if (ok) exported++;
+            console.log(`[GDRIVE] Session ${sessionId.slice(-8)} export result: ${ok}`);
+          } catch (err) {
+            console.error(`[GDRIVE] Session ${sessionId.slice(-8)} export threw:`, err instanceof Error ? err.message : err);
+          }
         }
       }
 
@@ -326,7 +335,7 @@ export const initRealtime = (io: Server) => {
         exported,
         total: data.sessionIds.length,
       });
-      console.log(`[GDRIVE] Batch export: ${exported}/${data.sessionIds.length} sessions`);
+      console.log(`[GDRIVE] Batch export complete: ${exported}/${data.sessionIds.length} sessions`);
     });
 
     // ── Chat history for moderator review ────────────────────────

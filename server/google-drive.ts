@@ -221,19 +221,6 @@ const getOrCreateSessionDocs = async (
   });
   const docId = doc.data.id!;
 
-  const docs = google.docs({ version: 'v1', auth });
-  await docs.documents.batchUpdate({
-    documentId: docId,
-    requestBody: {
-      requests: [{
-        insertText: {
-          location: { index: 1 },
-          text: `Chat Transcript\nSession: ${sessionId}\nCondition: ${condLabel}\nDate: ${today}\n\n`,
-        },
-      }],
-    },
-  });
-
   // Create Google Sheet
   const sheet = await drive.files.create({
     requestBody: {
@@ -245,19 +232,44 @@ const getOrCreateSessionDocs = async (
   });
   const sheetId = sheet.data.id!;
 
-  const sheets = google.sheets({ version: 'v4', auth });
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: 'Sheet1!A1:F1',
-    valueInputOption: 'RAW',
-    requestBody: {
-      values: [['Timestamp', 'Sender', 'Message', 'Session ID', 'Condition', 'Message ID']],
-    },
-  });
-
+  // Cache immediately after file creation so we don't create duplicates
+  // if the content write below fails
   const result = { docId, sheetId };
   sessionDocsCache.set(key, result);
   console.log(`[GDRIVE] Created Doc (${docId}) and Sheet (${sheetId}) for session ${shortId}`);
+
+  // Write header content (non-fatal if this fails — files still exist)
+  try {
+    const docs = google.docs({ version: 'v1', auth });
+    await docs.documents.batchUpdate({
+      documentId: docId,
+      requestBody: {
+        requests: [{
+          insertText: {
+            location: { index: 1 },
+            text: `Chat Transcript\nSession: ${sessionId}\nCondition: ${condLabel}\nDate: ${today}\n\n`,
+          },
+        }],
+      },
+    });
+  } catch (err) {
+    console.error(`[GDRIVE] Warning: failed to write doc header for ${docId}:`, err);
+  }
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: 'Sheet1!A1:F1',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [['Timestamp', 'Sender', 'Message', 'Session ID', 'Condition', 'Message ID']],
+      },
+    });
+  } catch (err) {
+    console.error(`[GDRIVE] Warning: failed to write sheet header for ${sheetId}:`, err);
+  }
+
   return result;
 };
 
@@ -278,57 +290,66 @@ export const autoSaveMessageToGoogleDrive = async (
   message: ChatMessageForExport
 ): Promise<boolean> => {
   const email = socketToEmail.get(moderatorSocketId);
-  if (!email) return false;
+  if (!email) { console.log('[GDRIVE] No email for socket', moderatorSocketId); return false; }
   const auth = getClientForModerator(moderatorSocketId);
-  if (!auth) return false;
+  if (!auth) { console.log('[GDRIVE] No auth client for socket', moderatorSocketId); return false; }
 
   try {
     const { docId, sheetId } = await getOrCreateSessionDocs(email, sessionId, condition, auth);
 
     const timestamp = new Date(message.timestamp).toLocaleString();
     const senderLabel = message.sender === 'participant' ? 'Participant' : 'Moderator/AI';
+    const docContent = `[${timestamp}] ${senderLabel}:\n${message.content}\n\n`;
 
     // Append to Google Doc
-    const docs = google.docs({ version: 'v1', auth });
-    const docContent = `[${timestamp}] ${senderLabel}:\n${message.content}\n\n`;
-    const docMeta = await docs.documents.get({ documentId: docId });
-    const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
-    const insertAt = Math.max(1, endIndex - 1);
+    try {
+      const docs = google.docs({ version: 'v1', auth });
+      const docMeta = await docs.documents.get({ documentId: docId });
+      const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
+      const insertAt = Math.max(1, endIndex - 1);
 
-    await docs.documents.batchUpdate({
-      documentId: docId,
-      requestBody: {
-        requests: [{
-          insertText: {
-            location: { index: insertAt },
-            text: docContent,
-          },
-        }],
-      },
-    });
+      await docs.documents.batchUpdate({
+        documentId: docId,
+        requestBody: {
+          requests: [{
+            insertText: {
+              location: { index: insertAt },
+              text: docContent,
+            },
+          }],
+        },
+      });
+      console.log(`[GDRIVE] Doc append OK - ${sessionId.slice(-8)}`);
+    } catch (docErr) {
+      console.error(`[GDRIVE] Doc append FAILED for ${docId}:`, docErr instanceof Error ? docErr.message : docErr);
+    }
 
     // Append to Google Sheet
-    const sheets = google.sheets({ version: 'v4', auth });
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: 'Sheet1!A:F',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[
-          new Date(message.timestamp).toISOString(),
-          message.sender,
-          message.content,
-          sessionId,
-          condition || 'unknown',
-          message.id,
-        ]],
-      },
-    });
+    try {
+      const sheets = google.sheets({ version: 'v4', auth });
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: sheetId,
+        range: 'Sheet1!A:F',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[
+            new Date(message.timestamp).toISOString(),
+            message.sender,
+            message.content,
+            sessionId,
+            condition || 'unknown',
+            message.id,
+          ]],
+        },
+      });
+      console.log(`[GDRIVE] Sheet append OK - ${sessionId.slice(-8)}`);
+    } catch (sheetErr) {
+      console.error(`[GDRIVE] Sheet append FAILED for ${sheetId}:`, sheetErr instanceof Error ? sheetErr.message : sheetErr);
+    }
 
-    console.log(`[GDRIVE] Message saved - Session: ${sessionId.slice(-8)}, Sender: ${message.sender}`);
     return true;
   } catch (err) {
-    console.error(`[GDRIVE] Error saving message:`, err);
+    console.error(`[GDRIVE] Error saving message:`, err instanceof Error ? err.message : err);
     return false;
   }
 };
@@ -344,19 +365,22 @@ export const exportSessionToGoogleDrive = async (
   messages: ChatMessageForExport[]
 ): Promise<boolean> => {
   const email = socketToEmail.get(moderatorSocketId);
-  if (!email) return false;
+  if (!email) {
+    console.error(`[GDRIVE] exportSession: no email for socket ${moderatorSocketId}`);
+    return false;
+  }
   const auth = getClientForModerator(moderatorSocketId);
-  if (!auth) return false;
+  if (!auth) {
+    console.error(`[GDRIVE] exportSession: no auth for socket ${moderatorSocketId}`);
+    return false;
+  }
+
+  console.log(`[GDRIVE] Exporting session ${sessionId.slice(-8)} (${messages.length} messages) for ${email}`);
 
   try {
     const { docId, sheetId } = await getOrCreateSessionDocs(email, sessionId, condition, auth);
 
     // Batch append all messages to Doc
-    const docs = google.docs({ version: 'v1', auth });
-    const docMeta = await docs.documents.get({ documentId: docId });
-    const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
-    let insertAt = Math.max(1, endIndex - 1);
-
     const docText = messages.map(m => {
       const ts = new Date(m.timestamp).toLocaleString();
       const label = m.sender === 'participant' ? 'Participant' : 'Moderator/AI';
@@ -364,21 +388,30 @@ export const exportSessionToGoogleDrive = async (
     }).join('');
 
     if (docText) {
-      await docs.documents.batchUpdate({
-        documentId: docId,
-        requestBody: {
-          requests: [{
-            insertText: {
-              location: { index: insertAt },
-              text: docText,
-            },
-          }],
-        },
-      });
+      try {
+        const docs = google.docs({ version: 'v1', auth });
+        const docMeta = await docs.documents.get({ documentId: docId });
+        const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
+        const insertAt = Math.max(1, endIndex - 1);
+
+        await docs.documents.batchUpdate({
+          documentId: docId,
+          requestBody: {
+            requests: [{
+              insertText: {
+                location: { index: insertAt },
+                text: docText,
+              },
+            }],
+          },
+        });
+        console.log(`[GDRIVE] Doc batch write OK - ${docId}`);
+      } catch (docErr) {
+        console.error(`[GDRIVE] Doc batch write FAILED for ${docId}:`, docErr instanceof Error ? docErr.message : docErr);
+      }
     }
 
     // Batch append all messages to Sheet
-    const sheets = google.sheets({ version: 'v4', auth });
     const rows = messages.map(m => [
       new Date(m.timestamp).toISOString(),
       m.sender,
@@ -389,18 +422,24 @@ export const exportSessionToGoogleDrive = async (
     ]);
 
     if (rows.length) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId,
-        range: 'Sheet1!A:F',
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: rows },
-      });
+      try {
+        const sheets = google.sheets({ version: 'v4', auth });
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: sheetId,
+          range: 'Sheet1!A:F',
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: rows },
+        });
+        console.log(`[GDRIVE] Sheet batch write OK - ${sheetId}`);
+      } catch (sheetErr) {
+        console.error(`[GDRIVE] Sheet batch write FAILED for ${sheetId}:`, sheetErr instanceof Error ? sheetErr.message : sheetErr);
+      }
     }
 
     console.log(`[GDRIVE] Batch exported ${messages.length} messages for session ${sessionId.slice(-8)}`);
     return true;
   } catch (err) {
-    console.error(`[GDRIVE] Error batch exporting:`, err);
+    console.error(`[GDRIVE] Error in exportSession:`, err instanceof Error ? err.message : err);
     return false;
   }
 };
