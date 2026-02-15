@@ -307,25 +307,31 @@ export const initRealtime = (io: Server) => {
       } else if (userType === 'moderator' && sessionId) {
         try {
           const session = chatSessions.get(sessionId);
-          if (session && session.partnerType === 'human') {
-            session.moderatorId = socket.id;
-
-            connectedUsers.set(socket.id, { socketId: socket.id, userType: 'moderator', sessionId, lastActive: new Date() });
-
-            socket.join(sessionId);
-            socket.emit('session-joined', {
-              sessionId,
-              userType: 'moderator',
-              session,
-              partnerType: session.partnerType,
-              disclosedType: session.disclosedType,
-              condition: session.condition,
-            });
-
-            socket.emit('chat-history', session.messages);
-          } else if (session && session.partnerType === 'llm') {
-            socket.emit('join-error', { sessionId, error: 'Session managed by LLM moderator' });
+          if (!session) {
+            socket.emit('join-error', { sessionId, error: 'Session not found' });
+            return;
           }
+
+          session.moderatorId = socket.id;
+          connectedUsers.set(socket.id, { socketId: socket.id, userType: 'moderator', sessionId, lastActive: new Date() });
+
+          socket.join(sessionId);
+
+          // moderatorInputEnabled: true when the moderator is the actual
+          // responder (partnerType=human), false when AI generates responses
+          const moderatorInputEnabled = session.partnerType === 'human';
+
+          socket.emit('session-joined', {
+            sessionId,
+            userType: 'moderator',
+            session,
+            partnerType: session.partnerType,
+            disclosedType: session.disclosedType,
+            condition: session.condition,
+            moderatorInputEnabled,
+          });
+
+          socket.emit('chat-history', session.messages);
         } catch (err) {
           console.error('Error in join-session (moderator):', err);
         }
@@ -340,6 +346,14 @@ export const initRealtime = (io: Server) => {
         const session = chatSessions.get(sessionId);
 
         if (session) {
+          // Server-side enforcement: block moderator messages when AI is the
+          // actual responder (truthful-ai and deceptive-ai-as-human conditions)
+          if (sender === 'moderator' && session.partnerType === 'llm') {
+            console.warn(`[BLOCKED] Moderator tried to send message in AI-controlled session ${sessionId} (condition: ${session.condition})`);
+            socket.emit('send-error', { error: 'Input is disabled for this session mode.' });
+            return;
+          }
+
           const user = connectedUsers.get(socket.id);
           if (user) {
             user.lastActive = new Date();
