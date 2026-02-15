@@ -266,12 +266,12 @@ export const initRealtime = (io: Server) => {
     };
 
     // ── Google Drive OAuth events ──────────────────────────────────
-    socket.on('google-auth-request', () => {
+    socket.on('google-auth-request', (data?: { origin?: string }) => {
       if (!isGoogleDriveConfigured()) {
         socket.emit('google-auth-status', { connected: false, error: 'Google Drive not configured on server' });
         return;
       }
-      const url = getAuthUrl(socket.id);
+      const url = getAuthUrl(socket.id, data?.origin);
       socket.emit('google-auth-url', { url });
     });
 
