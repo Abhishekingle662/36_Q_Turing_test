@@ -6,6 +6,15 @@ import { fileURLToPath } from 'url';
 import { generateLLMResponse, isLLMEnabled } from './llm.js';
 import { initializeGoogleSheets, exportMessageToGoogleSheets, exportSessionSummaryToGoogleSheets, isGoogleSheetsEnabled } from './google-sheets.js';
 import { exportMessageToExcel, exportSessionSummaryToExcel } from './excel-export.js';
+import {
+  getAuthUrl,
+  isModeratorAuthenticated,
+  getModeratorEmail,
+  clearModeratorTokens,
+  autoSaveMessageToGoogleDrive,
+  isGoogleDriveConfigured,
+  getAuthenticatedModeratorIds,
+} from './google-drive.js';
 
 type PartnerType = 'human' | 'llm';
 type SessionStatus = 'active' | 'inactive';
@@ -140,6 +149,27 @@ const stopLLMSessionAutoExport = (sessionId: string) => {
   }
 };
 
+// Auto-save a message to Google Drive for all authenticated moderators
+// connected to the given session.
+const autoSaveToGDrive = (
+  sessionId: string,
+  session: ChatSession,
+  message: ChatMessage
+) => {
+  if (!isGoogleDriveConfigured()) return;
+
+  // Find moderator(s) connected to this session who have Google auth
+  const moderatorSocketId = session.moderatorId;
+  if (moderatorSocketId && isModeratorAuthenticated(moderatorSocketId)) {
+    autoSaveMessageToGoogleDrive(
+      moderatorSocketId,
+      sessionId,
+      session.condition,
+      message
+    ).catch(err => console.error('[GDRIVE] Auto-save failed:', err));
+  }
+};
+
 let initialized = false;
 
 export const initRealtime = (io: Server) => {
@@ -234,6 +264,50 @@ export const initRealtime = (io: Server) => {
         console.error('Error broadcasting active sessions:', err);
       }
     };
+
+    // ── Google Drive OAuth events ──────────────────────────────────
+    socket.on('google-auth-request', () => {
+      if (!isGoogleDriveConfigured()) {
+        socket.emit('google-auth-status', { connected: false, error: 'Google Drive not configured on server' });
+        return;
+      }
+      const url = getAuthUrl(socket.id);
+      socket.emit('google-auth-url', { url });
+    });
+
+    socket.on('google-auth-check', () => {
+      const connected = isModeratorAuthenticated(socket.id);
+      const email = connected ? getModeratorEmail(socket.id) : undefined;
+      socket.emit('google-auth-status', { connected, email });
+    });
+
+    socket.on('google-disconnect', () => {
+      clearModeratorTokens(socket.id);
+      socket.emit('google-auth-status', { connected: false });
+      console.log(`[GDRIVE] Moderator ${socket.id} disconnected Google account`);
+    });
+
+    // ── Chat history for moderator review ────────────────────────
+    // Returns all sessions with their messages for the history tab
+    socket.on('get-all-sessions', () => {
+      const allSessions = Array.from(chatSessions.entries()).map(([id, session]) => ({
+        sessionId: id,
+        participantId: session.participantId,
+        status: session.status,
+        condition: session.condition,
+        partnerType: session.partnerType,
+        disclosedType: session.disclosedType,
+        lastActivity: session.lastActivity.toISOString(),
+        messageCount: session.messages.length,
+        messages: session.messages.map(m => ({
+          id: m.id,
+          content: m.content,
+          sender: m.sender,
+          timestamp: m.timestamp,
+        })),
+      }));
+      socket.emit('all-sessions', allSessions);
+    });
 
     socket.on('join-session', (data: { userType: 'participant' | 'moderator'; sessionId?: string; participantId?: string }) => {
       const { userType, sessionId, participantId } = data;
@@ -376,6 +450,7 @@ export const initRealtime = (io: Server) => {
           if (isGoogleSheetsEnabled()) {
             await exportMessageToGoogleSheets(message, sessionId, session.partnerType);
           }
+          autoSaveToGDrive(sessionId, session, message);
 
           io.to(sessionId).emit('new-message', message);
           console.log(`Message sent in session ${sessionId}:`, message);
@@ -455,6 +530,7 @@ export const initRealtime = (io: Server) => {
                 if (isGoogleSheetsEnabled()) {
                   exportMessageToGoogleSheets(llmMessage, sessionId, session.partnerType).catch((err) => console.error('[EXPORT] Google Sheets export failed:', err));
                 }
+                autoSaveToGDrive(sessionId, session, llmMessage);
               } catch (error) {
                 console.error('[LLM] Response generation error:', error);
                 const fallbackMessage: ChatMessage = {

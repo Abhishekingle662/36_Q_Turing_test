@@ -39,6 +39,23 @@ type ActiveSessionPayload = Array<{
   condition: ExperimentCondition;
 }>;
 
+type AllSessionsPayload = Array<{
+  sessionId: string;
+  participantId: string;
+  status: 'active' | 'inactive';
+  condition?: ExperimentCondition;
+  partnerType?: PartnerType;
+  disclosedType?: PartnerType;
+  lastActivity: string;
+  messageCount: number;
+  messages: Array<{
+    id: string;
+    content: string;
+    sender: Sender;
+    timestamp: string | Date;
+  }>;
+}>;
+
 type ParticipantEventPayload = { sessionId: string; participantId: string };
 type JoinErrorPayload = { sessionId: string; error: string };
 type DeleteErrorPayload = { sessionId: string; error: string };
@@ -230,6 +247,36 @@ class SocketService {
     if (this.socket) {
       this.socket.on('session-ended', callback);
     }
+  }
+
+  // ── Google Drive auth ──────────────────────────────────────────
+  requestGoogleAuth() {
+    this.socket?.emit('google-auth-request');
+  }
+
+  checkGoogleAuth() {
+    this.socket?.emit('google-auth-check');
+  }
+
+  disconnectGoogle() {
+    this.socket?.emit('google-disconnect');
+  }
+
+  onGoogleAuthUrl(callback: (data: { url: string }) => void) {
+    this.socket?.on('google-auth-url', callback);
+  }
+
+  onGoogleAuthStatus(callback: (data: { connected: boolean; email?: string; error?: string }) => void) {
+    this.socket?.on('google-auth-status', callback);
+  }
+
+  // ── Chat history (all sessions) ───────────────────────────────
+  getAllSessions() {
+    this.socket?.emit('get-all-sessions');
+  }
+
+  onAllSessions(callback: (sessions: AllSessionsPayload) => void) {
+    this.socket?.on('all-sessions', callback);
   }
 
   // Clean up event listeners
