@@ -14,6 +14,12 @@ import {
   CpuChipIcon,
 } from '@heroicons/react/24/outline';
 
+type ExperimentCondition =
+  | 'truthful-human'
+  | 'truthful-ai'
+  | 'deceptive-ai-as-human'
+  | 'deceptive-human-as-ai';
+
 interface ActiveSession {
   sessionId: string;
   participantId: string;
@@ -21,7 +27,16 @@ interface ActiveSession {
   messageCount: number;
   status: 'active' | 'inactive';
   partnerType: 'human' | 'llm';
+  disclosedType: 'human' | 'llm';
+  condition: ExperimentCondition;
 }
+
+const conditionLabels: Record<ExperimentCondition, string> = {
+  'truthful-human': 'Truthful Human',
+  'truthful-ai': 'Truthful AI',
+  'deceptive-ai-as-human': 'AI as Human',
+  'deceptive-human-as-ai': 'Human as AI',
+};
 
 export default function ModeratorDashboard() {
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
@@ -211,14 +226,23 @@ export default function ModeratorDashboard() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-4 text-sm">
+                  <div className="flex items-center gap-2 mb-2 text-sm">
                     {isAI ? (
                       <CpuChipIcon className="w-4 h-4 text-teal-600" />
                     ) : (
                       <UserGroupIcon className="w-4 h-4 text-teal-600" />
                     )}
                     <span className="text-slate-600">
-                      {isAI ? 'AI Participant' : 'Human Participant'}
+                      Actual: {isAI ? 'AI' : 'Human'}
+                    </span>
+                  </div>
+                  <div className="mb-4">
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                      session.condition?.includes('deceptive')
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {conditionLabels[session.condition] || session.condition}
                     </span>
                   </div>
 

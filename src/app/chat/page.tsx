@@ -8,15 +8,13 @@ import Image from 'next/image';
 // Import socket service for real-time communication
 import socketService from '@/lib/socket';
 
-// TypeScript interface defining the structure of a chat message
 interface Message {
-  id: string;                           // Unique identifier for each message
-  content: string;                      // The actual message text
-  sender: 'user' | 'human' | 'ai';     // Who sent the message (user, human participant, or AI)
-  timestamp: Date;                      // When the message was sent
+  id: string;
+  content: string;
+  sender: 'user' | 'human' | 'ai';
+  timestamp: Date;
 }
 
-// TypeScript interface for participant information (database structure)
 interface ParticipantInfo {
   id: string;
   name: string;
@@ -28,8 +26,31 @@ interface ParticipantInfo {
   profileImage: string;
 }
 
-// Typing indicator component for showing when someone is typing
-const TypingIndicator = ({ sender, participantName }: { sender: 'human' | 'ai'; participantName: string }) => (
+// Bio shown when participant is told their partner is human
+const HUMAN_PARTICIPANT_INFO: ParticipantInfo = {
+  id: '1',
+  name: 'Carolina',
+  age: 26,
+  occupation: 'Research Assistant',
+  location: 'Indianapolis, IN',
+  interests: ['Hiking', 'Reading Sci-Fi', 'Coffee Exploration', 'Communication Studies'],
+  bio: "I'm a research assistant studying how people communicate and build connections. I enjoy hiking, reading sci-fi, exploring new coffee shops, and I'm looking forward to chatting with you!",
+  profileImage: '/female.png'
+};
+
+// Bio shown when participant is told their partner is AI
+const AI_PARTICIPANT_INFO: ParticipantInfo = {
+  id: '2',
+  name: 'Carolina',
+  age: 26,
+  occupation: 'AI Research Assistant',
+  location: 'Indianapolis, IN',
+  interests: ['Communication Studies', 'Natural Language', 'Conversation Analysis', 'Research'],
+  bio: "I'm an AI research assistant designed to have natural conversations as part of a study on how people communicate and build connections. I'm looking forward to chatting with you!",
+  profileImage: '/female.png'
+};
+
+const TypingIndicator = ({ participantName }: { participantName: string }) => (
   <div className="flex justify-start">
     <div className="max-w-xs lg:max-w-md px-4 py-3 rounded-lg bg-slate-100 text-slate-900">
       <div className="flex items-center gap-2">
@@ -39,7 +60,7 @@ const TypingIndicator = ({ sender, participantName }: { sender: 'human' | 'ai'; 
           <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
         </div>
         <span className="text-xs text-slate-500">
-          {sender === 'ai' ? 'Chatbot is typing...' : `${participantName} is typing...`}
+          {`${participantName} is typing...`}
         </span>
       </div>
     </div>
@@ -50,53 +71,32 @@ const TypingIndicator = ({ sender, participantName }: { sender: 'human' | 'ai'; 
 export default function ChatPage() {
   // STATE MANAGEMENT: All the reactive data for the chat interface
 
-  // Array of all chat messages, initialized with a welcome message
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: 'Welcome to the research study conversation interface. You have been paired with another participant. Please be respectful and engage naturally in the conversation.',
-      sender: 'user', // System message, not from a participant
-      timestamp: new Date(),
-    }
-  ]);
-
-  // Current text in the input field
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-
-  // Connection status (for UI feedback)
   const [isConnected, setIsConnected] = useState(false);
 
-  // Type of participant user is chatting with (hidden from user for anonymity)
+  // partnerType = actual partner (human or llm)
+  // disclosedType = what the participant is told (human or llm)
   const [participantType, setParticipantType] = useState<'human' | 'ai'>('human');
   const [partnerType, setPartnerType] = useState<'human' | 'llm'>('human');
+  const [disclosedType, setDisclosedType] = useState<'human' | 'llm'>('human');
   const [hasStartedConversation, setHasStartedConversation] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionCountdown, setConnectionCountdown] = useState(5);
   const [hasJoinedSession, setHasJoinedSession] = useState(false);
   const [matchStatusMessage, setMatchStatusMessage] = useState<string>('');
 
-  // Typing indicators for more human-like interaction
   const [isTyping, setIsTyping] = useState(false);
   const [isModeratorTyping, setIsModeratorTyping] = useState(false);
 
-  // Socket-related state
   const [sessionId, setSessionId] = useState<string>('');
   const [isSessionEnded, setIsSessionEnded] = useState(false);
   const participantIdRef = useRef<string>('');
   const hasStartedRef = useRef(false);
   const hasJoinedRef = useRef(false);
 
-  // Mock participant data (will be fetched from database in production)
-  const [participantInfo] = useState<ParticipantInfo>({
-    id: '1',
-    name: 'Carolina',
-    age: 26,
-    occupation: 'Research Assistant',
-    location: 'Indianapolis, IN',
-    interests: ['Hiking', 'Reading Sci-Fi', 'Coffee Exploration', 'Communication Studies'],
-    bio: 'I\'m a research assistant studying how people communicate and build connections. I enjoy hiking, reading sci-fi, exploring new coffee shops, and I\'m looking forward to chatting with you!',
-    profileImage: '/female.png'
-  });
+  // Partner info shown to participant — based on disclosedType, not actual partnerType
+  const participantInfo = disclosedType === 'llm' ? AI_PARTICIPANT_INFO : HUMAN_PARTICIPANT_INFO;
 
   // DOM REFERENCES: For direct DOM manipulation
   // Reference to scroll to bottom of messages
@@ -156,13 +156,37 @@ export default function ChatPage() {
         setHasJoinedSession(true);
         if (data.partnerType) {
           setPartnerType(data.partnerType);
-          setParticipantType(data.partnerType === 'llm' ? 'ai' : 'human');
-          setMatchStatusMessage(
-            data.partnerType === 'llm'
-              ? 'You have been paired with our AI research participant.'
-              : 'You have been paired with another human participant.'
-          );
         }
+        // Use disclosedType (what participant is told) for UI display
+        const disclosed = data.disclosedType || data.partnerType || 'human';
+        setDisclosedType(disclosed);
+        setParticipantType(disclosed === 'llm' ? 'ai' : 'human');
+        // Build welcome message based on disclosed type
+        const partnerLabel = disclosed === 'llm'
+          ? 'an AI research assistant'
+          : 'another human participant';
+        const welcomeContent =
+          `You have been paired with ${partnerLabel} for this conversation.\n\n` +
+          `In this study, you and your conversation partner will take turns asking and answering a series of questions designed to help people get to know each other. ` +
+          `Please engage naturally and be open in your responses.\n\n` +
+          `To get started, type a message below to say hello to your partner!`;
+
+        setMessages(prev => {
+          const hasWelcome = prev.some(m => m.id === 'welcome');
+          if (hasWelcome) return prev;
+          return [{
+            id: 'welcome',
+            content: welcomeContent,
+            sender: 'human' as const,
+            timestamp: new Date(),
+          }, ...prev];
+        });
+
+        setMatchStatusMessage(
+          disclosed === 'llm'
+            ? 'You are chatting with an AI research assistant.'
+            : 'You are chatting with another human participant.'
+        );
       }
     });
 
@@ -192,7 +216,6 @@ export default function ChatPage() {
       }
     });
 
-    // Listen for moderator connection status
     // Listen for chat history when rejoining
     socketService.onChatHistory((messages) => {
       const formattedMessages: Message[] = messages.map((msg: { id: string; content: string; sender: string; timestamp: string | Date }) => ({
@@ -201,9 +224,8 @@ export default function ChatPage() {
         sender: msg.sender === 'participant' ? 'user' : msg.sender === 'moderator' ? 'human' : 'ai',
         timestamp: new Date(msg.timestamp)
       }));
-      // Replace messages (keep only welcome message if it exists, then add history)
       setMessages(prev => {
-        const welcomeMsg = prev.find(m => m.id === '1'); // Keep welcome message
+        const welcomeMsg = prev.find(m => m.id === 'welcome');
         const existingIds = new Set(prev.map(m => m.id));
         const newMessages = formattedMessages.filter(m => !existingIds.has(m.id));
         return welcomeMsg ? [welcomeMsg, ...newMessages] : newMessages;
@@ -499,8 +521,8 @@ export default function ChatPage() {
                       {participantInfo.name}
                     </span>
                     {hasJoinedSession && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${partnerType === 'llm' ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'}`}>
-                        {partnerType === 'llm' ? 'AI Participant' : 'Human Participant'}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${disclosedType === 'llm' ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'}`}>
+                        {disclosedType === 'llm' ? 'AI Participant' : 'Human Participant'}
                       </span>
                     )}
                   </div>
@@ -531,15 +553,15 @@ export default function ChatPage() {
                       </h3>
                       <p className="text-slate-600 leading-relaxed">
                         {isConnecting
-                          ? 'Matching you with another participant. This can take up to 5 seconds.'
-                          : 'When you start, we will randomly connect you with either another human or our AI research participant.'}
+                          ? 'Matching you with a conversation partner. This can take up to 5 seconds.'
+                          : 'When you start, we will connect you with a conversation partner. You will then take turns asking and answering questions designed to help people get to know each other.'}
                       </p>
                     </div>
                     
                     {isConnecting ? (
                       <div className="flex flex-col items-center gap-2">
                         <div className="text-3xl font-mono text-teal-600 font-bold">{connectionCountdown > 0 ? connectionCountdown : 0}</div>
-                        <p className="text-sm text-slate-500">Determining your conversation partner...</p>
+                        <p className="text-sm text-slate-500">Finding your conversation partner...</p>
                       </div>
                     ) : (
                       <button
@@ -550,7 +572,7 @@ export default function ChatPage() {
                       </button>
                     )}
                     <p className="text-xs text-slate-400">
-                      50% chance of connecting with an AI participant. All chats are monitored for research.
+                      All chats are recorded for research purposes.
                     </p>
                   </div>
                 </div>
@@ -589,12 +611,9 @@ export default function ChatPage() {
               ))}
 
               {/* Typing indicators */}
-              {isTyping && <TypingIndicator sender="ai" participantName={participantInfo.name} />}
+              {isTyping && <TypingIndicator participantName={participantInfo.name} />}
               {isModeratorTyping && (
-                <TypingIndicator
-                  sender={partnerType === 'llm' ? 'ai' : 'human'}
-                  participantName={participantInfo.name}
-                />
+                <TypingIndicator participantName={participantInfo.name} />
               )}
 
               {/* Invisible div for auto-scrolling to bottom */}
@@ -631,7 +650,7 @@ export default function ChatPage() {
                   Press Enter to send • Shift+Enter for new line
                 </p>
                 <p className="text-xs text-slate-400">
-                  {matchStatusMessage || 'Click "Start Conversation" to be paired with a partner.'}
+                  {matchStatusMessage || 'Click "Start Conversation" to be paired with a conversation partner.'}
                 </p>
               </div>
             </div>

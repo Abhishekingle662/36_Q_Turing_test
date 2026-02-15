@@ -11,6 +11,17 @@ type PartnerType = 'human' | 'llm';
 type SessionStatus = 'active' | 'inactive';
 type MessageSender = 'participant' | 'moderator';
 
+// Experimental conditions:
+//   truthful-human:  actual=human, disclosed=human
+//   truthful-ai:     actual=llm,   disclosed=llm
+//   deceptive-ai-as-human: actual=llm, disclosed=human  (told human, actually AI)
+//   deceptive-human-as-ai: actual=human, disclosed=llm  (told AI, actually human)
+type ExperimentCondition =
+  | 'truthful-human'
+  | 'truthful-ai'
+  | 'deceptive-ai-as-human'
+  | 'deceptive-human-as-ai';
+
 interface ChatMessage {
   id: string;
   content: string;
@@ -22,13 +33,40 @@ interface ChatSession {
   participantId: string;
   status: SessionStatus;
   lastActivity: Date;
-  partnerType?: PartnerType;
+  partnerType?: PartnerType;       // actual partner (human moderator or llm)
+  disclosedType?: PartnerType;     // what the participant is told
+  condition?: ExperimentCondition;
   messages: ChatMessage[];
   moderatorId?: string;
 }
 
 const chatSessions = new Map<string, ChatSession>();
 const sessionStats = { human: 0, llm: 0 };
+
+// Round-robin counter for balanced condition assignment
+const conditionOrder: ExperimentCondition[] = [
+  'truthful-human',
+  'truthful-ai',
+  'deceptive-ai-as-human',
+  'deceptive-human-as-ai',
+];
+let conditionIndex = 0;
+
+const assignCondition = (): { partnerType: PartnerType; disclosedType: PartnerType; condition: ExperimentCondition } => {
+  const condition = conditionOrder[conditionIndex % conditionOrder.length];
+  conditionIndex++;
+
+  switch (condition) {
+    case 'truthful-human':
+      return { partnerType: 'human', disclosedType: 'human', condition };
+    case 'truthful-ai':
+      return { partnerType: 'llm', disclosedType: 'llm', condition };
+    case 'deceptive-ai-as-human':
+      return { partnerType: 'llm', disclosedType: 'human', condition };
+    case 'deceptive-human-as-ai':
+      return { partnerType: 'human', disclosedType: 'llm', condition };
+  }
+};
 const connectedUsers = new Map<string, { socketId: string; userType: MessageSender; sessionId?: string; lastActive: Date }>();
 const llmSessionExportIntervals = new Map<string, NodeJS.Timeout>();
 
@@ -54,6 +92,8 @@ const exportSessionData = async (sessionId: string, session: ChatSession) => {
       sessionId,
       exportedAt: new Date().toISOString(),
       partnerType: session.partnerType,
+      disclosedType: session.disclosedType,
+      condition: session.condition,
       status: session.status,
       lastActivity: session.lastActivity,
       messageCount: session.messages.length,
@@ -179,7 +219,9 @@ export const initRealtime = (io: Server) => {
             hasModeratorAssigned: !!session.moderatorId,
             messageCount: session.messages.length,
             status: session.status,
-            partnerType: session.partnerType || 'human'
+            partnerType: session.partnerType || 'human',
+            disclosedType: session.disclosedType || session.partnerType || 'human',
+            condition: session.condition || 'truthful-human',
           }))
           .sort((a, b) => {
             const sessionA = chatSessions.get(a.participantId);
@@ -203,24 +245,25 @@ export const initRealtime = (io: Server) => {
           let session = chatSessions.get(targetSessionId);
 
           if (!session) {
-            const randomValue = Math.random();
-            const assignedPartnerType: PartnerType = randomValue < 0.5 ? 'human' : 'llm';
+            const assigned = assignCondition();
             session = {
               participantId: targetSessionId,
               status: 'active',
               lastActivity: new Date(),
-              partnerType: assignedPartnerType,
+              partnerType: assigned.partnerType,
+              disclosedType: assigned.disclosedType,
+              condition: assigned.condition,
               messages: []
             };
             chatSessions.set(targetSessionId, session);
 
-            sessionStats[assignedPartnerType]++;
+            sessionStats[assigned.partnerType]++;
             const total = sessionStats.human + sessionStats.llm;
             const humanPercent = ((sessionStats.human / total) * 100).toFixed(1);
             const llmPercent = ((sessionStats.llm / total) * 100).toFixed(1);
-            console.log(`[STATS] New session: ${assignedPartnerType.toUpperCase()} | Distribution: Human ${humanPercent}% | LLM ${llmPercent}%`);
+            console.log(`[STATS] New session: condition=${assigned.condition} actual=${assigned.partnerType} disclosed=${assigned.disclosedType} | Distribution: Human ${humanPercent}% | LLM ${llmPercent}%`);
 
-            if (assignedPartnerType === 'llm') {
+            if (assigned.partnerType === 'llm') {
               startLLMSessionAutoExport(targetSessionId, session);
             }
 
@@ -231,7 +274,10 @@ export const initRealtime = (io: Server) => {
             session.status = 'active';
             session.lastActivity = new Date();
             if (!session.partnerType) {
-              session.partnerType = Math.random() < 0.5 ? 'llm' : 'human';
+              const assigned = assignCondition();
+              session.partnerType = assigned.partnerType;
+              session.disclosedType = assigned.disclosedType;
+              session.condition = assigned.condition;
             }
 
             if (wasInactive) {
@@ -246,7 +292,13 @@ export const initRealtime = (io: Server) => {
           connectedUsers.set(socket.id, { socketId: socket.id, userType: 'participant', sessionId: targetSessionId, lastActive: new Date() });
 
           socket.join(targetSessionId);
-          socket.emit('session-joined', { sessionId: targetSessionId, userType: 'participant', partnerType: session?.partnerType });
+          socket.emit('session-joined', {
+            sessionId: targetSessionId,
+            userType: 'participant',
+            partnerType: session?.partnerType,
+            disclosedType: session?.disclosedType,
+            condition: session?.condition,
+          });
 
           socket.emit('chat-history', chatSessions.get(targetSessionId)?.messages || []);
         } catch (err) {
@@ -261,7 +313,14 @@ export const initRealtime = (io: Server) => {
             connectedUsers.set(socket.id, { socketId: socket.id, userType: 'moderator', sessionId, lastActive: new Date() });
 
             socket.join(sessionId);
-            socket.emit('session-joined', { sessionId, userType: 'moderator', session, partnerType: session.partnerType });
+            socket.emit('session-joined', {
+              sessionId,
+              userType: 'moderator',
+              session,
+              partnerType: session.partnerType,
+              disclosedType: session.disclosedType,
+              condition: session.condition,
+            });
 
             socket.emit('chat-history', session.messages);
           } else if (session && session.partnerType === 'llm') {
@@ -310,6 +369,21 @@ export const initRealtime = (io: Server) => {
           if (sender === 'participant' && session.partnerType === 'llm' && isLLMEnabled()) {
             io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: true });
 
+            // For deceptive-ai-as-human condition, simulate realistic human
+            // timing: reading the message, thinking, then typing.
+            const isDisguisedAsHuman = session.disclosedType === 'human' && session.partnerType === 'llm';
+
+            // Reading delay: ~200-300ms per word in the participant's message,
+            // plus a 3-8s "thinking" pause before they start typing.
+            const participantWordCount = content.split(/\s+/).length;
+            const readingTime = isDisguisedAsHuman
+              ? participantWordCount * (200 + Math.random() * 100)  // reading
+                + 3000 + Math.random() * 5000                       // thinking
+              : 0;
+            const initialDelay = isDisguisedAsHuman
+              ? readingTime
+              : 100;
+
             setTimeout(async () => {
               try {
                 const sessionData = {
@@ -327,6 +401,26 @@ export const initRealtime = (io: Server) => {
                   console.warn(`[LLM] No response generated for session ${sessionId}`);
                   io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: false });
                   return;
+                }
+
+                // For deceptive-ai-as-human, simulate realistic human typing
+                // speed. Average typist: ~35-45 WPM → ~1.3-1.7s per word
+                // (including pauses between thoughts, re-reading, corrections).
+                // We use 800-1500ms per word to feel genuinely human-paced.
+                if (isDisguisedAsHuman) {
+                  const words = llmResponse.split(/\s+/);
+                  // Base typing time per word with high variability
+                  let typingDelay = 0;
+                  for (let i = 0; i < words.length; i++) {
+                    // Per-word delay: 800-1500ms base
+                    typingDelay += 800 + Math.random() * 700;
+                    // Occasional longer pauses (thinking mid-sentence) every 8-15 words
+                    if (i > 0 && i % (8 + Math.floor(Math.random() * 8)) === 0) {
+                      typingDelay += 2000 + Math.random() * 3000;
+                    }
+                  }
+                  console.log(`[LLM] Simulating human typing: ${words.length} words, ${Math.round(typingDelay / 1000)}s delay`);
+                  await new Promise(resolve => setTimeout(resolve, typingDelay));
                 }
 
                 const llmMessage: ChatMessage = {
@@ -360,7 +454,7 @@ export const initRealtime = (io: Server) => {
               } finally {
                 io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: false });
               }
-            }, 100);
+            }, initialDelay);
           }
         } else {
           console.error(`Server: Session NOT found for ${sessionId} during send-message`);
