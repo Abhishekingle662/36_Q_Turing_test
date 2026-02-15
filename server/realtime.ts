@@ -369,12 +369,19 @@ export const initRealtime = (io: Server) => {
           if (sender === 'participant' && session.partnerType === 'llm' && isLLMEnabled()) {
             io.to(sessionId).emit('user-typing', { userType: 'moderator', isTyping: true });
 
-            // For deceptive-ai-as-human condition, add a realistic human-like
-            // delay before the LLM starts generating. This makes the AI feel
-            // more like a human who needs time to read and think.
+            // For deceptive-ai-as-human condition, simulate realistic human
+            // timing: reading the message, thinking, then typing.
             const isDisguisedAsHuman = session.disclosedType === 'human' && session.partnerType === 'llm';
+
+            // Reading delay: ~200-300ms per word in the participant's message,
+            // plus a 3-8s "thinking" pause before they start typing.
+            const participantWordCount = content.split(/\s+/).length;
+            const readingTime = isDisguisedAsHuman
+              ? participantWordCount * (200 + Math.random() * 100)  // reading
+                + 3000 + Math.random() * 5000                       // thinking
+              : 0;
             const initialDelay = isDisguisedAsHuman
-              ? 2000 + Math.random() * 3000  // 2-5s "reading + thinking" delay
+              ? readingTime
               : 100;
 
             setTimeout(async () => {
@@ -396,11 +403,23 @@ export const initRealtime = (io: Server) => {
                   return;
                 }
 
-                // For deceptive-ai-as-human, simulate human typing speed
-                // (~40-70 WPM = ~200-300ms per word) after the LLM has generated
+                // For deceptive-ai-as-human, simulate realistic human typing
+                // speed. Average typist: ~35-45 WPM → ~1.3-1.7s per word
+                // (including pauses between thoughts, re-reading, corrections).
+                // We use 800-1500ms per word to feel genuinely human-paced.
                 if (isDisguisedAsHuman) {
-                  const wordCount = llmResponse.split(/\s+/).length;
-                  const typingDelay = wordCount * (200 + Math.random() * 100);
+                  const words = llmResponse.split(/\s+/);
+                  // Base typing time per word with high variability
+                  let typingDelay = 0;
+                  for (let i = 0; i < words.length; i++) {
+                    // Per-word delay: 800-1500ms base
+                    typingDelay += 800 + Math.random() * 700;
+                    // Occasional longer pauses (thinking mid-sentence) every 8-15 words
+                    if (i > 0 && i % (8 + Math.floor(Math.random() * 8)) === 0) {
+                      typingDelay += 2000 + Math.random() * 3000;
+                    }
+                  }
+                  console.log(`[LLM] Simulating human typing: ${words.length} words, ${Math.round(typingDelay / 1000)}s delay`);
                   await new Promise(resolve => setTimeout(resolve, typingDelay));
                 }
 
