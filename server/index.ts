@@ -1,8 +1,9 @@
 import 'dotenv/config';
-import { createServer } from 'http';
+import { createServer, IncomingMessage, ServerResponse } from 'http';
 import next from 'next';
 import { Server } from 'socket.io';
 import { initRealtime } from './realtime.js';
+import { handleAuthCallback, isGoogleDriveConfigured } from './google-drive.js';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0';
@@ -11,9 +12,45 @@ const port = parseInt(process.env.PORT || '3000', 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
+// Handle Google OAuth callback route before Next.js
+const handleOAuthRoutes = async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
+  const url = new URL(req.url || '/', `http://${req.headers.host}`);
+
+  if (url.pathname === '/auth/google/callback') {
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
+
+    if (!code || !state) {
+      res.writeHead(400, { 'Content-Type': 'text/html' });
+      res.end('<h2>Missing code or state parameter</h2><p><a href="/moderator">Return to dashboard</a></p>');
+      return true;
+    }
+
+    try {
+      const { email } = await handleAuthCallback(code, state);
+      // Redirect back to moderator dashboard with success indicator
+      res.writeHead(302, {
+        Location: `/moderator?google_connected=true&email=${encodeURIComponent(email)}`,
+      });
+      res.end();
+    } catch (err) {
+      console.error('[OAUTH] Callback error:', err);
+      res.writeHead(302, { Location: '/moderator?google_connected=false' });
+      res.end();
+    }
+    return true;
+  }
+
+  return false;
+};
+
 app.prepare().then(() => {
-  const httpServer = createServer((req, res) => {
-    handle(req, res);
+  const httpServer = createServer(async (req, res) => {
+    // Handle OAuth routes first
+    const handled = await handleOAuthRoutes(req, res);
+    if (!handled) {
+      handle(req, res);
+    }
   });
 
   const io = new Server(httpServer, {
