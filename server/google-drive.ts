@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { OAuth2Client, Credentials } from 'google-auth-library';
+import { Readable } from 'stream';
 
 // ── Environment ──────────────────────────────────────────────────────
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -9,7 +10,6 @@ const CALLBACK_PATH = '/auth/google/callback';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/documents',
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/userinfo.email',
 ];
@@ -17,12 +17,9 @@ const SCOPES = [
 export const isGoogleDriveConfigured = () =>
   Boolean(CLIENT_ID && CLIENT_SECRET);
 
-// ── Token storage keyed by email (survives socket reconnects) ────────
-// email → tokens
+// ── Token storage keyed by email ─────────────────────────────────────
 const tokenStore = new Map<string, Credentials>();
-// socketId → email (current session mapping)
 const socketToEmail = new Map<string, string>();
-// OAuth state → { socketId, redirectUri }
 const pendingOAuth = new Map<string, { socketId: string; redirectUri: string }>();
 
 // ── OAuth helpers ────────────────────────────────────────────────────
@@ -36,25 +33,20 @@ const resolveRedirectUri = (origin?: string): string => {
   return `http://localhost:3000${CALLBACK_PATH}`;
 };
 
-/** Generate the consent URL for a moderator. */
 export const getAuthUrl = (socketId: string, origin?: string): string => {
   const redirectUri = resolveRedirectUri(origin);
   const client = createOAuth2Client(redirectUri);
   const state = `${socketId}_${Date.now()}`;
   pendingOAuth.set(state, { socketId, redirectUri });
-
-  const url = client.generateAuthUrl({
+  console.log(`[GDRIVE] Auth URL generated. redirect_uri=${redirectUri}`);
+  return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     scope: SCOPES,
     state,
   });
-
-  console.log(`[GDRIVE] Auth URL generated. redirect_uri=${redirectUri}`);
-  return url;
 };
 
-/** Exchange the callback code for tokens. Returns the email. */
 export const handleAuthCallback = async (
   code: string,
   state: string
@@ -68,52 +60,39 @@ export const handleAuthCallback = async (
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
 
-  // Fetch email
   const oauth2 = google.oauth2({ version: 'v2', auth: client });
   const { data } = await oauth2.userinfo.get();
   const email = data.email || 'unknown';
 
-  // Store tokens keyed by email (persistent across socket reconnects)
   tokenStore.set(email, tokens);
   socketToEmail.set(socketId, email);
-
   console.log(`[GDRIVE] Authenticated: ${email} (socket ${socketId})`);
   return { socketId, email };
 };
 
-/**
- * Link a new socket ID to an existing email's tokens.
- * Called when a moderator reconnects and provides their email.
- */
 export const linkSocketToEmail = (socketId: string, email: string): boolean => {
   if (tokenStore.has(email)) {
     socketToEmail.set(socketId, email);
-    console.log(`[GDRIVE] Socket ${socketId} linked to ${email}`);
     return true;
   }
   return false;
 };
 
-/** Check if a moderator (by socket) has valid tokens. */
 export const isModeratorAuthenticated = (socketId: string): boolean => {
   const email = socketToEmail.get(socketId);
   return email ? tokenStore.has(email) : false;
 };
 
-/** Check if an email has valid tokens (for reconnection). */
 export const isEmailAuthenticated = (email: string): boolean =>
   tokenStore.has(email);
 
-/** Get the email for a socket. */
 export const getModeratorEmail = (socketId: string): string | undefined =>
   socketToEmail.get(socketId);
 
-/** Disconnect a moderator's Google account. */
 export const clearModeratorTokens = (socketId: string) => {
   const email = socketToEmail.get(socketId);
   if (email) {
     tokenStore.delete(email);
-    // Remove all socket mappings for this email
     for (const [sid, e] of socketToEmail.entries()) {
       if (e === email) socketToEmail.delete(sid);
     }
@@ -121,18 +100,15 @@ export const clearModeratorTokens = (socketId: string) => {
   socketToEmail.delete(socketId);
 };
 
-/** Clean up socket mapping on disconnect (keep tokens for reconnect). */
 export const onSocketDisconnect = (socketId: string) => {
   socketToEmail.delete(socketId);
 };
 
-/** Get an authenticated OAuth2Client for a moderator socket. */
 const getClientForModerator = (socketId: string): OAuth2Client | null => {
   const email = socketToEmail.get(socketId);
   if (!email) return null;
   const tokens = tokenStore.get(email);
   if (!tokens) return null;
-
   const client = createOAuth2Client(resolveRedirectUri());
   client.setCredentials(tokens);
   client.on('tokens', (newTokens) => {
@@ -143,21 +119,19 @@ const getClientForModerator = (socketId: string): OAuth2Client | null => {
 };
 
 // ── Drive folder management ──────────────────────────────────────────
-const folderCache = new Map<string, { rootFolderId: string; dateFolderId: string; date: string }>();
 const ROOT_FOLDER_NAME = 'Turing Test Research';
+const folderCache = new Map<string, { rootId: string; dateId: string; date: string }>();
 
-const getOrCreateFolder = async (
+const findOrCreateFolder = async (
   drive: ReturnType<typeof google.drive>,
   name: string,
   parentId?: string
 ): Promise<string> => {
-  let query = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  if (parentId) query += ` and '${parentId}' in parents`;
+  let q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  if (parentId) q += ` and '${parentId}' in parents`;
 
-  const res = await drive.files.list({ q: query, fields: 'files(id,name)', spaces: 'drive' });
-  if (res.data.files && res.data.files.length > 0) {
-    return res.data.files[0].id!;
-  }
+  const res = await drive.files.list({ q, fields: 'files(id)', spaces: 'drive' });
+  if (res.data.files?.length) return res.data.files[0].id!;
 
   const folder = await drive.files.create({
     requestBody: {
@@ -174,88 +148,72 @@ const getOrCreateFolder = async (
 const getDayFolder = async (email: string, auth: OAuth2Client): Promise<string> => {
   const today = new Date().toISOString().slice(0, 10);
   const cached = folderCache.get(email);
-  if (cached && cached.date === today) return cached.dateFolderId;
+  if (cached && cached.date === today) return cached.dateId;
 
   const drive = google.drive({ version: 'v3', auth });
-  const rootFolderId = cached?.rootFolderId || await getOrCreateFolder(drive, ROOT_FOLDER_NAME);
-  const dateFolderId = await getOrCreateFolder(drive, today, rootFolderId);
-
-  folderCache.set(email, { rootFolderId, dateFolderId, date: today });
-  return dateFolderId;
+  const rootId = cached?.rootId || await findOrCreateFolder(drive, ROOT_FOLDER_NAME);
+  const dateId = await findOrCreateFolder(drive, today, rootId);
+  folderCache.set(email, { rootId, dateId, date: today });
+  return dateId;
 };
 
-// ── Doc/Sheet tracking per session ───────────────────────────────────
-interface SessionDocs { docId: string; sheetId: string }
-const sessionDocsCache = new Map<string, SessionDocs>();
+// ── Session doc/sheet tracking ───────────────────────────────────────
+interface SessionFiles { docId: string; sheetId: string }
+const fileCache = new Map<string, SessionFiles>();
 
-const cacheKey = (email: string, sessionId: string) => {
-  const today = new Date().toISOString().slice(0, 10);
-  return `${email}:${sessionId}:${today}`;
-};
+const fileKey = (email: string, sessionId: string) =>
+  `${email}:${sessionId}:${new Date().toISOString().slice(0, 10)}`;
 
-const getOrCreateSessionDocs = async (
+// ── Create files ─────────────────────────────────────────────────────
+
+const getOrCreateFiles = async (
   email: string,
   sessionId: string,
   condition: string | undefined,
   auth: OAuth2Client
-): Promise<SessionDocs> => {
-  const key = cacheKey(email, sessionId);
-  const cached = sessionDocsCache.get(key);
+): Promise<SessionFiles> => {
+  const key = fileKey(email, sessionId);
+  const cached = fileCache.get(key);
   if (cached) return cached;
 
   const folderId = await getDayFolder(email, auth);
   const today = new Date().toISOString().slice(0, 10);
   const shortId = sessionId.slice(-8);
   const condLabel = condition || 'unknown';
-
   const drive = google.drive({ version: 'v3', auth });
 
-  // Create Google Doc
-  const doc = await drive.files.create({
+  // Create Google Doc with initial content via media upload.
+  // This uses the Drive API only (no Docs API needed).
+  const docTitle = `Chat - ${shortId} - ${condLabel} - ${today}`;
+  const initialText = `Chat Transcript - Session ${shortId}\n${today}\n\n`;
+
+  const docRes = await drive.files.create({
     requestBody: {
-      name: `Chat - ${shortId} - ${condLabel} - ${today}`,
+      name: docTitle,
       mimeType: 'application/vnd.google-apps.document',
       parents: [folderId],
     },
+    media: {
+      mimeType: 'text/plain',
+      body: Readable.from([initialText]),
+    },
     fields: 'id',
   });
-  const docId = doc.data.id!;
+  const docId = docRes.data.id!;
 
-  // Create Google Sheet
-  const sheet = await drive.files.create({
+  // Create Google Sheet with header row
+  const sheetTitle = `Data - ${shortId} - ${condLabel} - ${today}`;
+  const sheetRes = await drive.files.create({
     requestBody: {
-      name: `Data - ${shortId} - ${condLabel} - ${today}`,
+      name: sheetTitle,
       mimeType: 'application/vnd.google-apps.spreadsheet',
       parents: [folderId],
     },
     fields: 'id',
   });
-  const sheetId = sheet.data.id!;
+  const sheetId = sheetRes.data.id!;
 
-  // Cache immediately after file creation so we don't create duplicates
-  // if the content write below fails
-  const result = { docId, sheetId };
-  sessionDocsCache.set(key, result);
-  console.log(`[GDRIVE] Created Doc (${docId}) and Sheet (${sheetId}) for session ${shortId}`);
-
-  // Write header content (non-fatal if this fails — files still exist)
-  try {
-    const docs = google.docs({ version: 'v1', auth });
-    await docs.documents.batchUpdate({
-      documentId: docId,
-      requestBody: {
-        requests: [{
-          insertText: {
-            location: { index: 1 },
-            text: `Chat Transcript\nSession: ${sessionId}\nCondition: ${condLabel}\nDate: ${today}\n\n`,
-          },
-        }],
-      },
-    });
-  } catch (err) {
-    console.error(`[GDRIVE] Warning: failed to write doc header for ${docId}:`, err);
-  }
-
+  // Write header row
   try {
     const sheets = google.sheets({ version: 'v4', auth });
     await sheets.spreadsheets.values.update({
@@ -267,10 +225,50 @@ const getOrCreateSessionDocs = async (
       },
     });
   } catch (err) {
-    console.error(`[GDRIVE] Warning: failed to write sheet header for ${sheetId}:`, err);
+    console.error(`[GDRIVE] Sheet header write failed:`, err instanceof Error ? err.message : err);
   }
 
+  const result = { docId, sheetId };
+  fileCache.set(key, result);
+  console.log(`[GDRIVE] Created Doc (${docId}) + Sheet (${sheetId}) for ${shortId}`);
   return result;
+};
+
+// ── Append text to a Google Doc via Drive API export/update ──────────
+// Uses Drive API to download current content, append, and re-upload.
+// This avoids the Docs API entirely.
+const appendToDoc = async (
+  drive: ReturnType<typeof google.drive>,
+  docId: string,
+  text: string
+): Promise<void> => {
+  // Export current doc content as plain text
+  let existing = '';
+  try {
+    const exportRes = await drive.files.export({
+      fileId: docId,
+      mimeType: 'text/plain',
+    });
+    existing = String(exportRes.data || '');
+  } catch {
+    // New doc or export failed — start fresh
+  }
+
+  const updated = existing + text;
+
+  await drive.files.update({
+    fileId: docId,
+    media: {
+      mimeType: 'text/plain',
+      body: Readable.from([updated]),
+    },
+  });
+};
+
+// ── Format a message for the doc ─────────────────────────────────────
+const formatMessage = (msg: ChatMessageForExport): string => {
+  const label = msg.sender === 'participant' ? 'Participant' : 'AI/Moderator';
+  return `${label}: ${msg.content}\n\n`;
 };
 
 // ── Public API ───────────────────────────────────────────────────────
@@ -282,7 +280,7 @@ export interface ChatMessageForExport {
   timestamp: Date;
 }
 
-/** Auto-save a single message to the moderator's Google Drive. */
+/** Auto-save a single message in real time. */
 export const autoSaveMessageToGoogleDrive = async (
   moderatorSocketId: string,
   sessionId: string,
@@ -290,74 +288,45 @@ export const autoSaveMessageToGoogleDrive = async (
   message: ChatMessageForExport
 ): Promise<boolean> => {
   const email = socketToEmail.get(moderatorSocketId);
-  if (!email) { console.log('[GDRIVE] No email for socket', moderatorSocketId); return false; }
+  if (!email) return false;
   const auth = getClientForModerator(moderatorSocketId);
-  if (!auth) { console.log('[GDRIVE] No auth client for socket', moderatorSocketId); return false; }
+  if (!auth) return false;
 
   try {
-    const { docId, sheetId } = await getOrCreateSessionDocs(email, sessionId, condition, auth);
+    const { docId, sheetId } = await getOrCreateFiles(email, sessionId, condition, auth);
+    const drive = google.drive({ version: 'v3', auth });
 
-    const timestamp = new Date(message.timestamp).toLocaleString();
-    const senderLabel = message.sender === 'participant' ? 'Participant' : 'Moderator/AI';
-    const docContent = `[${timestamp}] ${senderLabel}:\n${message.content}\n\n`;
+    // Append to doc
+    await appendToDoc(drive, docId, formatMessage(message));
+    console.log(`[GDRIVE] Doc append OK - ${sessionId.slice(-8)}`);
 
-    // Append to Google Doc
-    try {
-      const docs = google.docs({ version: 'v1', auth });
-      const docMeta = await docs.documents.get({ documentId: docId });
-      const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
-      const insertAt = Math.max(1, endIndex - 1);
-
-      await docs.documents.batchUpdate({
-        documentId: docId,
-        requestBody: {
-          requests: [{
-            insertText: {
-              location: { index: insertAt },
-              text: docContent,
-            },
-          }],
-        },
-      });
-      console.log(`[GDRIVE] Doc append OK - ${sessionId.slice(-8)}`);
-    } catch (docErr) {
-      console.error(`[GDRIVE] Doc append FAILED for ${docId}:`, docErr instanceof Error ? docErr.message : docErr);
-    }
-
-    // Append to Google Sheet
-    try {
-      const sheets = google.sheets({ version: 'v4', auth });
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId,
-        range: 'Sheet1!A:F',
-        valueInputOption: 'USER_ENTERED',
-        requestBody: {
-          values: [[
-            new Date(message.timestamp).toISOString(),
-            message.sender,
-            message.content,
-            sessionId,
-            condition || 'unknown',
-            message.id,
-          ]],
-        },
-      });
-      console.log(`[GDRIVE] Sheet append OK - ${sessionId.slice(-8)}`);
-    } catch (sheetErr) {
-      console.error(`[GDRIVE] Sheet append FAILED for ${sheetId}:`, sheetErr instanceof Error ? sheetErr.message : sheetErr);
-    }
+    // Append to sheet
+    const sheets = google.sheets({ version: 'v4', auth });
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'Sheet1!A:F',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          new Date(message.timestamp).toISOString(),
+          message.sender,
+          message.content,
+          sessionId,
+          condition || 'unknown',
+          message.id,
+        ]],
+      },
+    });
+    console.log(`[GDRIVE] Sheet append OK - ${sessionId.slice(-8)}`);
 
     return true;
   } catch (err) {
-    console.error(`[GDRIVE] Error saving message:`, err instanceof Error ? err.message : err);
+    console.error(`[GDRIVE] autoSave error:`, err instanceof Error ? err.message : err);
     return false;
   }
 };
 
-/**
- * Export an entire session's messages to Google Drive (batch).
- * Used for manual "Save to Google Drive" from the history tab.
- */
+/** Batch export an entire session's messages. */
 export const exportSessionToGoogleDrive = async (
   moderatorSocketId: string,
   sessionId: string,
@@ -375,43 +344,20 @@ export const exportSessionToGoogleDrive = async (
     return false;
   }
 
-  console.log(`[GDRIVE] Exporting session ${sessionId.slice(-8)} (${messages.length} messages) for ${email}`);
+  console.log(`[GDRIVE] Exporting ${messages.length} messages for session ${sessionId.slice(-8)}`);
 
   try {
-    const { docId, sheetId } = await getOrCreateSessionDocs(email, sessionId, condition, auth);
+    const { docId, sheetId } = await getOrCreateFiles(email, sessionId, condition, auth);
+    const drive = google.drive({ version: 'v3', auth });
 
-    // Batch append all messages to Doc
-    const docText = messages.map(m => {
-      const ts = new Date(m.timestamp).toLocaleString();
-      const label = m.sender === 'participant' ? 'Participant' : 'Moderator/AI';
-      return `[${ts}] ${label}:\n${m.content}\n\n`;
-    }).join('');
-
+    // Build full doc text — just participant/moderator messages
+    const docText = messages.map(formatMessage).join('');
     if (docText) {
-      try {
-        const docs = google.docs({ version: 'v1', auth });
-        const docMeta = await docs.documents.get({ documentId: docId });
-        const endIndex = docMeta.data.body?.content?.slice(-1)?.[0]?.endIndex || 1;
-        const insertAt = Math.max(1, endIndex - 1);
-
-        await docs.documents.batchUpdate({
-          documentId: docId,
-          requestBody: {
-            requests: [{
-              insertText: {
-                location: { index: insertAt },
-                text: docText,
-              },
-            }],
-          },
-        });
-        console.log(`[GDRIVE] Doc batch write OK - ${docId}`);
-      } catch (docErr) {
-        console.error(`[GDRIVE] Doc batch write FAILED for ${docId}:`, docErr instanceof Error ? docErr.message : docErr);
-      }
+      await appendToDoc(drive, docId, docText);
+      console.log(`[GDRIVE] Doc batch write OK - ${docId}`);
     }
 
-    // Batch append all messages to Sheet
+    // Append all rows to sheet
     const rows = messages.map(m => [
       new Date(m.timestamp).toISOString(),
       m.sender,
@@ -420,26 +366,21 @@ export const exportSessionToGoogleDrive = async (
       condition || 'unknown',
       m.id,
     ]);
-
     if (rows.length) {
-      try {
-        const sheets = google.sheets({ version: 'v4', auth });
-        await sheets.spreadsheets.values.append({
-          spreadsheetId: sheetId,
-          range: 'Sheet1!A:F',
-          valueInputOption: 'USER_ENTERED',
-          requestBody: { values: rows },
-        });
-        console.log(`[GDRIVE] Sheet batch write OK - ${sheetId}`);
-      } catch (sheetErr) {
-        console.error(`[GDRIVE] Sheet batch write FAILED for ${sheetId}:`, sheetErr instanceof Error ? sheetErr.message : sheetErr);
-      }
+      const sheets = google.sheets({ version: 'v4', auth });
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: sheetId,
+        range: 'Sheet1!A:F',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: rows },
+      });
+      console.log(`[GDRIVE] Sheet batch write OK - ${sheetId}`);
     }
 
-    console.log(`[GDRIVE] Batch exported ${messages.length} messages for session ${sessionId.slice(-8)}`);
+    console.log(`[GDRIVE] Exported ${messages.length} messages for ${sessionId.slice(-8)}`);
     return true;
   } catch (err) {
-    console.error(`[GDRIVE] Error in exportSession:`, err instanceof Error ? err.message : err);
+    console.error(`[GDRIVE] exportSession error:`, err instanceof Error ? err.message : err);
     return false;
   }
 };
