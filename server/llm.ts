@@ -3,7 +3,7 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import type { ISession } from './models.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 const OPENAI_TEMP = Number(process.env.OPENAI_TEMPERATURE ?? 0.7);
 const OPENAI_MAX_TOKENS = Number(process.env.OPENAI_MAX_TOKENS ?? 400);
 const OPENAI_TIMEOUT = Number(process.env.OPENAI_TIMEOUT ?? 30000); // 30 seconds default
