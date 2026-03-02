@@ -204,7 +204,10 @@ io.on('connection', (socket) => {
   
   // Set socket timeout to prevent disconnections (5 minutes)
   socket.timeout(300000);
-  
+
+  // Latency measurement — immediately acks so client can calculate RTT
+  socket.on('ping_test', (_data, cb) => { if (typeof cb === 'function') cb(); });
+
   // Handle socket errors to prevent crashes
   socket.on('error', (error) => {
     console.error(`Socket error for ${socket.id}:`, error);
